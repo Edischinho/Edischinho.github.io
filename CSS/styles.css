@@ -1,0 +1,53 @@
+@charset "UTF-8";
+.Titu{
+ 
+ font-size:100pt;
+ color:red;
+ font-weight: bold;
+}
+.reference{
+    font-size:20pt;
+    font-style:italic;
+}
+p{
+    font-family: Arial;
+    color:black;
+    font-size: 18px;
+    margin: 4.7%;
+    word-break: normal;
+}
+.cap{
+    text-transform: capitalize;
+}
+
+.center{
+    text-align: center;
+}   
+.inf{
+    text-decoration: underline;
+}
+
+.comum{
+    font-family:Arial;
+}
+h1{
+    color:green;
+    text-decoration: underline;
+    font-family: verdana;
+}
+h3{
+    font-style: italic;
+    font-family: Comic-Sans;
+}
+#id1{
+    font-family: verdana;
+    color:blue;
+}
+.classeA{
+    font-family:Tahoma;
+    color:#333333;
+}
+body{
+    font-family:Arial;
+    color:black;
+}

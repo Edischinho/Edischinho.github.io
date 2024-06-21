@@ -1,0 +1,18 @@
+
+
+a:hover.zero{
+    background-color: black;
+    color:white;
+
+}
+a:visited.liv{
+    background-color:gray;
+    color:chartreuse;
+}
+a:hover.liv.zero{
+    background-color:firebrick;
+    color:darkgreen;
+}
+body{
+    background-color: aqua;
+}
