@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8"/>
+        <link rel="stylesheet" type="text/css" href="\CSS\bind.css" />
+        <title>Input</title>
+    </head>
+    <body>
+        <header><h1>
+            Input
+        </h1></header>
+        <nav></nav>
+        <section>
+            <form>
+              Email:<input type="email" name="email">  
+              Data:<input type="date" name="data"><br>
+              Escala:<input type="range" name="faixa"><br>
+              Cor:<input type="color" name="cor"><br>
+              Arquivo:<input type="file" name="pasta"><br>
+              <input list="cursos" name="curso">
+                <datalist id="cursos">
+                    <option value="HTML">HTML</option>
+                    <option value="CSS">CSS</option>
+                    <option value="javascript">Javascript</option>
+                </datalist>
+                
+              <input type="hidden" name="id" value="123">
+            </form><br>
+            <form enctype="multipart/formdata">
+                <!--enctype vai fazer com que não só o formulário envie texto, e sim, tambem ,
+                envie arquivos-->
+                <input type="file" name="arquivo" accept>
+            </form>
+
+        </section>
+        <footer>
+            <p>
+                Outros sites:
+                <ul>
+                <li><a class = "zero liv" href="Index.html">Index</a><br></li> 
+                <li><a class="zero" href= "Checkbox.html">Checkbox</a><br></li>
+                <li><a href= "Formulários.html">Formulário</a><br></li>
+                <li><a href= "Rótulos.html">Rótulos</a><br></li>
+                <li><a href= "LOTA.html">LOTA</a><br></li>
+                </ul>
+            </p>
+        </footer>
+    </body>
+</html>
