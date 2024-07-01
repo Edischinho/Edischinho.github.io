@@ -1,6 +1,5 @@
 @charset "UTF-8";
 .Titu{
- 
  font-size:100pt;
  color:red;
  font-weight: bold;
@@ -23,31 +22,112 @@ p{
 .center{
     text-align: center;
 }   
-.inf{
-    text-decoration: underline;
-}
 
-.comum{
-    font-family:Arial;
-}
+
 h1{
     color:green;
-    text-decoration: underline;
     font-family: verdana;
+    margin: 20px 15px 30px;
+    
 }
-h3{
-    font-style: italic;
-    font-family: Comic-Sans;
-}
-#id1{
-    font-family: verdana;
-    color:blue;
-}
-.classeA{
-    font-family:Tahoma;
-    color:#333333;
-}
+
 body{
     font-family:Arial;
     color:black;
+    a:link{
+        text-decoration: none;
+        color:none;
+    }
+    a:visited{
+        text-decoration:none;
+        color:none;
+    }
+}
+.caixa{
+    border: solid 1px #333;
+    padding: 5px 10px;
+    margin: 40px;
+}
+.area-visivel span{
+    color:#666;
+    display: none;
+
+}
+
+@keyframes autorotateanimation{
+    0%{
+        
+        transform: rotate(0deg);
+        background-color:rgb(62, 58, 112,0);
+        border-color: rgb(3, 3, 3,0);
+        color:rgb(5, 5, 5,0);
+        transform: translateY(0) scale(1);    
+    }
+    100%{
+        
+        
+        background-color:rgb(62, 58, 112);
+        border-color: rgb(3, 3, 3);
+        color:rgb(5, 5, 5);
+        transform: translateY(-5px) scale(1.2);
+
+    
+    }
+}
+
+
+@media screen and (min-width:600px){
+
+        .um{
+            background:cyan;
+            transition: transform .10s;
+        }
+        .um:hover{
+            background-color:rgb(62, 58, 112);
+            transform: scale(1.04); 
+            transform: rotate(1deg);
+        }
+        
+        span.lt600{
+            display:inline-block;
+        }
+}
+
+@media screen and (max-width:900px){
+
+        .dois{
+            background:rgb(224, 39, 126);
+            
+        }
+        .dois:hover{
+            background:rgb(54, 224, 39);
+            
+        }
+        span.gt900{
+            display:inline-block;
+        }
+}
+@media screen and (min-width:600px)and (max-width:900px){
+
+    .tres{
+        background:rgb(61, 218, 56);
+    }
+    .tres:hover{
+        background:rgb(224, 39, 126);
+        
+    }
+    span.bt600-900{
+        display:inline-block;
+    }
+
+
+}
+@media screen and (max-device-width:480px){
+
+    .quat{
+        background:rgb(61, 218, 56);
+    }
+    span.gt480{
+        display:inline-block;
+    }
 }
