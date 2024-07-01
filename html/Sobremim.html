@@ -1,11 +1,12 @@
 <html> 
     <head>
         <title> Sobremim</title>
-        <meta charset="UTF-8">
+        <meta charset="UTF-8"/>
+        <link rel="stylesheet" type="text/css" href="\CSS\styles.css" />
     </head>
     <body>
         <header>
-            <h1>Curso de HTML</h1> 
+            <h1 classe="Titu">Curso de HTML</h1> 
         </header>
         <nav>
             
@@ -15,62 +16,59 @@
             <ol>
                 <li>
                 <dl>
-                <dt>Características</dt>
+                <dt class="caixa um dois tres">Características</dt>
                 <ul>
-                    <li><a href = "imagens\loco.jpg" >Preto</a></li>
+                    <li><a href = "imagens\WIN_20240117_16_03_41_Pro.jpg" >Preto</a></li>
                     <li>Uso <a href = "https://pt.wikipedia.org/wiki/Anel"> aneis</a></li>
                     <li>Eu me chamo <b>Eduardo</b></li>
-                    <li>Tenho <b>15 anos</b></li>
+                    <div><li>Tenho <b>15 anos</b></li></div>
                     <li>Minha playlist favorita , <a href = "https://www.youtube.com/watch?v=BBJa32lCaaY&pp=ygULcm9jayByb2xsZWQ%3D"> essa</a></li>
                 </ul>
                 </dl>
                 </li>
+                <!---->
                 <li>
-               <details>
-                    <summary>Comidas favoritas</summary>
-                    <ul>
-                        <li>Cachorro quente</li>
-                        <li>Pera</li>
-                        <li>Salada de fruta</li>
-                    </ul>
-                </details>
+                <dl>
+                <dt class="caixa um dois tres">Comidas favoritas</dt>
+                <ul>
+                    <li>Cachorro quente</li>
+                    <li>Pera</li>
+                    <li>Salada de fruta</li>
+                </ul>
+                </dl>
                 </li>
                 <li>
                     
-                    Uma foto minha<br>
-                    <img src="imagens\loco.jpg" title ="HHEHEHEEHHEHE" height = "400px" width = "400px" center alt = "imagens\loco.jpg">
+                    <span class="caixa um dois tres">Uma foto minha</span><br>
+                    <img src="imagens\loco.jpg" title ="HHEHEHEEHHEHE" height = "400px" width = "400px" center alt = "HHEHEHEEHHEHE">
                 
                 </li>
                 <li>
-                    <details>
-                    <summary>
-                    música massa<br>
-                    </summary>
-                    <audio src="audio\O-que-sobrou-do-ceu.mp3" width="50%" controls></audio>
-                    </details>
+                   
+                    <span class="caixa um dois tres quat">música massa</span><br>
+                    <audio src = "aúdio\O-que-sobrou-do-ceu.mp3" width="50%" controls></audio>
                 </li>
                 <!--videos, a tag video pra inserir, o par src pra achar,title pra titulo, controls pra poder mecher-->
                 <li>
-                    <details>
-                    <summary>video massa<br></summary>
+                    video massa<br>
                     <video src="Video\O que sobrou do céu.mp4" title="HEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEHEHE"
                      controls></video>
-                    </details>
+                    
                 </li>
                 <!--aqui as tabelas-->
                 <li>
-                    <details>
-                        <summary><a href="tabela.html">tabela</a></summary>
+                    
+                        <a href="tabela.html">tabela</a>
                         <table>
-                        <tr>
+                        <div><tr>
                             <td>comida 1 
                             </td>
                             <td>
                             comida 2
                             </td>
-                        </tr>
+                        </tr></div>
                     </table>
-                    </details>
+                    
                 </li>
             </ol>
         </section>
