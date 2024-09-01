@@ -18,6 +18,10 @@ Div{
     
    
 }
+
+
+/* o titulo  
+*/
 Div.head{
     display: flex;
     margin: 23px 0px 20px;
@@ -35,7 +39,8 @@ Div.head:hover{
     border-color:rgb(212, 130, 30);
 
 }
-
+/* os livros  
+*/
 ol dd .navi{
     list-style-type:none;
     list-style-position:inside;
@@ -105,36 +110,70 @@ Div.livro:hover{
 
 
 
+/*aqui o rodapé*/
+Div.foot{
+    display: flex;
+    margin: 1720px 0% 20px;
+    width:100%;
+    height:60px;
+    background-color:rgba(28, 19, 36, 0);
+    align-items: center;
+    justify-content: center;
+    
+}
 
+Div.foot.d3{
+    height:80px;
+    width: 810px ;
+    float:left;
+    background: rgba(33, 20, 68, 0.925);
+    text-align: center;
+    border-color:  rgba(42, 25, 88, 0.925);
+    
+    a{
+        font-size:20px;
+        font-weight:bold;
+        font-family:Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+        text-decoration: none;
+        text-transform:capitalize ;
+        color:rgb(89, 75, 170);
+        
+    }
+    
+    ul li{
+        margin-bottom: 3px;
+    }
+    li::marker{
+        color:rgb(89, 75, 170,0);
+        
+    }
+    
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    animation: animationcool;
+    animation-timeline: view() ;
+    
+}
+Div.foot:hover{
+    
+    float:left;
+    background: rgb(255, 254, 254);
+    border-color:  rgba(33, 20, 68, 0.925);
+    
+    a{
+        color:rgb(0, 0, 0);
+    }
+    
+    
+}
+Div.foot::after{
+    display: flex;
+    margin: 83px 0px 20px;
+    width:229px;
+    height:60px;
+    background-color:rgba(255, 255, 255, 0);
+    align-items: center;
+    
+}
 
 
 Div.foot{
