@@ -189,7 +189,7 @@ Div.foot{
 
 Div.foot.d3{
     height:80px;
-    width: 810px ;
+    width: 100% ;
     float:left;
     background: rgba(33, 20, 68, 0.925);
     text-align: center;
