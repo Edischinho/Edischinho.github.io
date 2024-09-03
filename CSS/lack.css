@@ -109,9 +109,24 @@ Div.livro2 {
         color:rgb(0, 0, 0);
     }
     
+    
 }
 
-Div.livro:hover{
+Div.livro1:hover{
+    background-color: rgb(0, 0, 0);
+    color:rgb(212, 130, 30);
+    border-color:rgb(212, 130, 30);
+    a:link{
+        text-decoration: none;
+        color:rgb(212, 130, 30);
+    }
+    a:visited{
+        text-decoration:none;
+        color:rgb(212, 130, 30);
+    }
+
+}
+Div.livro2:hover{
     background-color: rgb(0, 0, 0);
     color:rgb(212, 130, 30);
     border-color:rgb(212, 130, 30);
