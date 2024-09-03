@@ -76,13 +76,30 @@ Div.navi:hover{
 }
 
 
-li Div.livro {
+Div.livro1 {
     font-size:medium;
     font-family: 'Times New Roman', Times, serif;
     display: flex;
     width:200px;
-    margin: 100px 0px 20px;
-    margin-bottom: -0px;
+    margin: 100px 20px 20px;
+    margin-bottom: -20px;
+    height:25px;
+    background-color:rgba(255, 255, 255, 0.925);
+    align-items: center;
+    justify-content: center;
+    a:link{
+        text-decoration: none;
+        color:rgb(0, 0, 0);
+    }
+    
+}
+Div.livro2 {
+    font-size:medium;
+    font-family: 'Times New Roman', Times, serif;
+    display: flex;
+    width:200px;
+    margin: 140px 20px 20px;
+    margin-bottom: -20px;
     height:25px;
     background-color:rgba(255, 255, 255, 0.925);
     align-items: center;
