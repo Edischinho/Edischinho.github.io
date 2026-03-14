@@ -1,5 +1,75 @@
 <!DOCTYPE html>
 <html>
+
+<head>
+
+<meta charset="UTF-8">
+<title>Livraria</title>
+
+<style>
+
+body{
+font-family:Arial;
+padding:20px;
+}
+
+#busca{
+width:300px;
+padding:10px;
+margin-bottom:20px;
+}
+
+#livros{
+display:grid;
+grid-template-columns:repeat(auto-fill,150px);
+gap:20px;
+}
+
+.livro{
+border:1px solid #ccc;
+padding:10px;
+text-align:center;
+}
+
+.livro img{
+width:120px;
+height:160px;
+object-fit:cover;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Livraria</h1>
+
+<input id="busca" placeholder="Pesquisar livros...">
+
+<div id="livros"></div>
+
+<script>
+
+let listaLivros = []
+
+async function carregarLivros(){
+
+let res = await fetch("https://edischinho-github-io.onrender.com/livros")
+
+listaLivros = await res.json()
+
+mostrarLivros(listaLivros)
+
+}
+
+function mostrarLivros(livros){
+
+let container = document.getElementById("livros")
+
+co
+<!DOCTYPE html>
+<html>
 <head>
 <meta charset="UTF-8">
 <title>Livraria</title>
