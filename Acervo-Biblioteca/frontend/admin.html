@@ -1,6 +1,51 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8">
+<title>Painel Admin</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<h2>Adicionar Livro</h2>
+
+<form id="form">
+
+<input name="titulo" placeholder="titulo">
+
+<input name="capa" type="file">
+
+<button>Enviar</button>
+
+</form>
+
+<script>
+
+document.getElementById("form").onsubmit=async(e)=>{
+
+e.preventDefault()
+
+let form=new FormData(e.target)
+
+await fetch("SEU_BACKEND_URL/addLivro",{
+
+method:"POST",
+body:form
+
+})
+
+alert("Livro adicionado")
+
+}
+
+</script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html>
+<head>
 <title>Painel Admin</title>
 <link rel="stylesheet" href="style.css">
 </head>
