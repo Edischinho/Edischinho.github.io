@@ -1,38 +1,89 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+<title>Login Admin</title>
+<link rel="stylesheet" href="style.css">
+
+<style>
+
+body{
+font-family: Arial;
+text-align:center;
+margin-top:100px;
+}
+
+input{
+display:block;
+margin:10px auto;
+padding:10px;
+width:200px;
+}
+
+button{
+padding:10px 20px;
+cursor:pointer;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>Login Admin</h2>
+
+<input id="user" placeholder="Usuário">
+<input id="pass" type="password" placeholder="Senha">
+
+<button onclick="login()">Entrar</button>
+
 <script>
 
 async function login(){
 
-let user=document.getElementById("user").value
-let pass=document.getElementById("pass").value
+let user = document.getElementById("user").value
+let pass = document.getElementById("pass").value
 
 try{
 
-let res=await fetch("https://edischinho-github-io.onrender.com/login",{
+let res = await fetch("https://edischinho-github-io.onrender.com/login",{
+
 method:"POST",
+
 headers:{
 "Content-Type":"application/json"
 },
+
 body:JSON.stringify({
 user:user,
 password:pass
 })
+
 })
 
-let text=await res.text()
+let text = await res.text()
 
 console.log("Resposta do servidor:",text)
 
-let data=JSON.parse(text)
+let data = JSON.parse(text)
 
-if(data.status==="ok"){
-location.href="admin.html"
+if(data.status === "ok"){
+
+location.href = "admin.html"
+
 }else{
-alert("login incorreto")
+
+alert("Login incorreto")
+
 }
 
 }catch(err){
 
 console.error(err)
+
 alert("Erro ao conectar com o servidor")
 
 }
@@ -40,3 +91,7 @@ alert("Erro ao conectar com o servidor")
 }
 
 </script>
+
+</body>
+
+</html>
