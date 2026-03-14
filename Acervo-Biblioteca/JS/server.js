@@ -7,10 +7,15 @@ const app = express()
 
 app.use(cors())
 app.use(express.json())
-app.use("/uploads", express.static("uploads"))
 
-const ADMIN_USER = "admin"
-const ADMIN_PASS = "1234"
+if(!fs.existsSync("uploads")){
+ fs.mkdirSync("uploads")
+}
+
+app.use("/uploads",express.static("uploads"))
+
+const ADMIN_USER="admin"
+const ADMIN_PASS="1234"
 
 const storage = multer.diskStorage({
  destination:"uploads/",
@@ -33,9 +38,16 @@ app.post("/login",(req,res)=>{
 
 })
 
-app.post("/addLivro", upload.single("capa"), (req,res)=>{
+app.get("/livros",(req,res)=>{
 
- let livros = JSON.parse(fs.readFileSync("livros.json"))
+ let livros=JSON.parse(fs.readFileSync("livros.json"))
+ res.json(livros)
+
+})
+
+app.post("/addLivro",upload.single("capa"),(req,res)=>{
+
+ let livros=JSON.parse(fs.readFileSync("livros.json"))
 
  livros.push({
   titulo:req.body.titulo,
@@ -44,15 +56,7 @@ app.post("/addLivro", upload.single("capa"), (req,res)=>{
 
  fs.writeFileSync("livros.json",JSON.stringify(livros,null,2))
 
- res.json({status:"livro adicionado"})
-
-})
-
-app.get("/livros",(req,res)=>{
-
- let livros = JSON.parse(fs.readFileSync("livros.json"))
-
- res.json(livros)
+ res.json({status:"ok"})
 
 })
 
