@@ -22,22 +22,25 @@ async function login(){
 let user=document.getElementById("user").value
 let pass=document.getElementById("pass").value
 
-let res=await fetch("SEU_BACKEND_URL/login",{
+let res=await fetch("https://edischinho-github-io.onrender.com/login",{
 
 method:"POST",
 headers:{"Content-Type":"application/json"},
-body:JSON.stringify({user,password:pass})
+body:JSON.stringify({user:user,pass:pass})
 
 })
 
 let data=await res.json()
 
-if(data.status==="ok"){
- location.href="admin.html"
+if(data.ok){
+location.href="admin.html"
 }else{
- alert("login incorreto")
+alert("login incorreto")
 }
 
 }
 
 </script>
+
+</body>
+</html>
