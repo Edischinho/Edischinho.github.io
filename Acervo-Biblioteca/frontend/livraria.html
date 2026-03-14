@@ -14,12 +14,16 @@ padding:20px;
 }
 
 #busca{
-width:300px;
 padding:10px;
-margin-bottom:20px;
+width:250px;
+}
+
+button{
+padding:10px;
 }
 
 #livros{
+margin-top:20px;
 display:grid;
 grid-template-columns:repeat(auto-fill,150px);
 gap:20px;
@@ -45,46 +49,64 @@ object-fit:cover;
 
 <h1>Livraria</h1>
 
-<input id="busca" placeholder="Pesquisar livros...">
+<input id="busca" placeholder="Nome do livro">
+<button onclick="pesquisar()">Pesquisar</button>
 
 <div id="livros"></div>
 
 <script>
 
-let listaLivros = []
+let livros=[]
 
-async function carregarLivros(){
+async function carregar(){
 
-let res = await fetch("https://edischinho-github-io.onrender.com/livros")
+let res=await fetch("https://edischinho-github-io.onrender.com/livros")
 
-listaLivros = await res.json()
+livros=await res.json()
 
-mostrarLivros(listaLivros)
+mostrar(livros)
 
 }
 
-function mostrarLivros(livros){
+function mostrar(lista){
 
-let container = document.getElementById("livros")
+let container=document.getElementById("livros")
 
-co
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Livraria</title>
-<link rel="stylesheet" href="style.css">
-</head>
+container.innerHTML=""
 
-<body>
+lista.forEach(livro=>{
 
-<h1>Livraria</h1>
+let div=document.createElement("div")
 
-<input id="search" placeholder="Buscar livro">
+div.className="livro"
 
-<div id="grid" class="grid"></div>
+div.innerHTML=`
+<img src="https://edischinho-github-io.onrender.com/${livro.capa}">
+<p>${livro.titulo}</p>
+`
 
-<script src="script.js"></script>
+container.appendChild(div)
+
+})
+
+}
+
+function pesquisar(){
+
+let texto=document.getElementById("busca").value.toLowerCase()
+
+let filtrados=livros.filter(livro=>
+livro.titulo.toLowerCase().includes(texto)
+)
+
+mostrar(filtrados)
+
+}
+
+carregar()
+
+</script>
 
 </body>
+
 </html>
