@@ -1,20 +1,3 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Login</title>
-<link rel="stylesheet" href="style.css">
-</head>
-
-<body>
-
-<h2>Login Admin</h2>
-
-<input id="user" placeholder="usuario">
-<input id="pass" type="password" placeholder="senha">
-
-<button onclick="login()">Entrar</button>
-
 <script>
 
 async function login(){
@@ -22,25 +5,38 @@ async function login(){
 let user=document.getElementById("user").value
 let pass=document.getElementById("pass").value
 
+try{
+
 let res=await fetch("https://edischinho-github-io.onrender.com/login",{
-
 method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({user:user,pass:pass})
-
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+user:user,
+password:pass
+})
 })
 
-let data=await res.json()
+let text=await res.text()
 
-if(data.ok){
+console.log("Resposta do servidor:",text)
+
+let data=JSON.parse(text)
+
+if(data.status==="ok"){
 location.href="admin.html"
 }else{
 alert("login incorreto")
 }
 
+}catch(err){
+
+console.error(err)
+alert("Erro ao conectar com o servidor")
+
+}
+
 }
 
 </script>
-
-</body>
-</html>
