@@ -5,7 +5,7 @@ let livros=[]
 
 async function carregar(){
 
-let res=await fetch("https://edischinho-github-io.onrender.com/livros")
+let res=await fetch("SEU_BACKEND_URL/livros")
 
 livros=await res.json()
 
