@@ -5,6 +5,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin — Stronghold Library</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Tags ── */
+    .tags-input-wrap { margin-bottom: 10px; }
+    .tags-preview {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-top: 6px; min-height: 10px;
+    }
+    .tag-pill {
+      background: #222; color: white;
+      border-radius: 20px; padding: 3px 10px; font-size: 12px;
+    }
+    .tag-pill-admin {
+      background: #444; color: #eee;
+      border-radius: 20px; padding: 2px 8px; font-size: 11px;
+      display: inline-block; margin: 2px;
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.aberto { display: flex; }
+    .modal {
+      background: white; border-radius: 12px;
+      padding: 28px; width: 90%; max-width: 460px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .modal h3 { margin-top: 0; }
+    .modal input, .modal textarea {
+      width: 100%; margin-bottom: 10px;
+    }
+    .modal-btns {
+      display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px;
+    }
+    .btn-cancelar {
+      background: #aaa;
+    }
+    .btn-cancelar:hover { background: #888; }
+
+    @media (prefers-color-scheme: dark) {
+      .tag-pill  { background: #eee; color: #111; }
+      .modal     { background: #1e1e1e; color: #eee; }
+    }
+  </style>
 </head>
 <body>
 
@@ -12,11 +60,14 @@
 
 <div class="container">
   <h2>Adicionar Livro</h2>
-
   <div class="form-wrap">
     <input id="titulo" placeholder="Título do livro" required>
     <input id="autor" placeholder="Autor (opcional)">
     <textarea id="descricao" placeholder="Descrição (opcional)" rows="3"></textarea>
+    <div class="tags-input-wrap">
+      <input id="tags" placeholder="Tags: #fantasia #romance #acao (separe com espaço)">
+      <div class="tags-preview" id="tags-preview"></div>
+    </div>
     <label class="file-label">
       Escolher arquivo (PDF ou imagem)
       <input type="file" id="arquivo" accept=".pdf,image/*">
@@ -32,54 +83,81 @@
   <div id="livros-admin"></div>
 </div>
 
+<!-- ── Modal de edição ── -->
+<div class="modal-overlay" id="modal-overlay" onclick="fecharModal(event)">
+  <div class="modal">
+    <h3>✏️ Editar Livro</h3>
+    <input  id="edit-titulo"    placeholder="Título">
+    <input  id="edit-autor"     placeholder="Autor">
+    <textarea id="edit-descricao" placeholder="Descrição" rows="3"></textarea>
+    <div class="tags-input-wrap">
+      <input id="edit-tags" placeholder="#tag1 #tag2 ...">
+      <div class="tags-preview" id="edit-tags-preview"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>
+      <button onclick="salvarEdicao()">💾 Salvar</button>
+    </div>
+    <p id="edit-status" style="display:none; margin-top:10px"></p>
+  </div>
+</div>
+
 <script>
 const API = "https://edischinho-github-io.onrender.com"
+let idEditando = null
 
-// Acorda o Render assim que a página abre
 fetch(`${API}/`, { method: "GET", mode: "cors" }).catch(() => {})
 
-// Mostrar nome do arquivo selecionado
-document.getElementById("arquivo").addEventListener("change", function () {
-  const name = this.files[0] ? this.files[0].name : "Nenhum arquivo selecionado"
-  document.getElementById("file-name").textContent = name
+// ── Preview tags (formulário de adicionar) ──
+document.getElementById("tags").addEventListener("input", function () {
+  const m = this.value.match(/#[\wÀ-ú]+/g) || []
+  document.getElementById("tags-preview").innerHTML =
+    m.map(t => `<span class="tag-pill">${t}</span>`).join("")
 })
 
-async function addLivro() {
-  const titulo     = document.getElementById("titulo").value.trim()
-  const autor      = document.getElementById("autor").value.trim()
-  const descricao  = document.getElementById("descricao").value.trim()
-  const arquivo    = document.getElementById("arquivo").files[0]
+// ── Preview tags (modal de edição) ──
+document.getElementById("edit-tags").addEventListener("input", function () {
+  const m = this.value.match(/#[\wÀ-ú]+/g) || []
+  document.getElementById("edit-tags-preview").innerHTML =
+    m.map(t => `<span class="tag-pill">${t}</span>`).join("")
+})
 
-  if (!titulo) { mostrarStatus("Digite o título do livro.", "erro"); return }
+// ── Nome do arquivo ──
+document.getElementById("arquivo").addEventListener("change", function () {
+  document.getElementById("file-name").textContent =
+    this.files[0] ? this.files[0].name : "Nenhum arquivo selecionado"
+})
+
+// ── Adicionar livro ──
+async function addLivro() {
+  const titulo    = document.getElementById("titulo").value.trim()
+  const autor     = document.getElementById("autor").value.trim()
+  const descricao = document.getElementById("descricao").value.trim()
+  const tags      = document.getElementById("tags").value.trim()
+  const arquivo   = document.getElementById("arquivo").files[0]
+
+  if (!titulo)  { mostrarStatus("Digite o título do livro.", "erro"); return }
   if (!arquivo) { mostrarStatus("Selecione um arquivo.", "erro"); return }
 
   const formData = new FormData()
   formData.append("titulo", titulo)
   formData.append("autor", autor)
   formData.append("descricao", descricao)
-  // ✅ campo "arquivo" — igual ao upload.single("arquivo") no server.js
+  formData.append("tags", tags)
   formData.append("arquivo", arquivo)
 
   const btn = document.getElementById("btn-enviar")
-  btn.disabled = true
-  btn.textContent = "Enviando..."
+  btn.disabled = true; btn.textContent = "Enviando..."
   mostrarStatus("Enviando para o servidor...", "info")
 
   try {
-    const res = await fetch(`${API}/addLivro`, {
-      method: "POST",
-      body: formData
-    })
-
+    const res  = await fetch(`${API}/addLivro`, { method: "POST", body: formData })
     const data = await res.json()
-
     if (data.status === "ok") {
       mostrarStatus("✅ Livro enviado com sucesso!", "ok")
-      // limpar formulário
-      document.getElementById("titulo").value = ""
-      document.getElementById("autor").value = ""
-      document.getElementById("descricao").value = ""
-      document.getElementById("arquivo").value = ""
+      ;["titulo","autor","descricao","tags","arquivo"].forEach(id =>
+        document.getElementById(id).value = "")
+      document.getElementById("tags-preview").innerHTML = ""
       document.getElementById("file-name").textContent = "Nenhum arquivo selecionado"
       carregarLivrosAdmin()
     } else {
@@ -88,15 +166,15 @@ async function addLivro() {
   } catch (err) {
     mostrarStatus("Erro de conexão: " + err.message, "erro")
   } finally {
-    btn.disabled = false
-    btn.textContent = "Enviar Livro"
+    btn.disabled = false; btn.textContent = "Enviar Livro"
   }
 }
 
+// ── Listar livros ──
 async function carregarLivrosAdmin(tentativa = 1) {
   const div = document.getElementById("livros-admin")
   try {
-    const res = await fetch(`${API}/livros`)
+    const res    = await fetch(`${API}/livros`)
     const livros = await res.json()
 
     if (!livros.length) {
@@ -104,14 +182,29 @@ async function carregarLivrosAdmin(tentativa = 1) {
       return
     }
 
-    div.innerHTML = livros.map(l => `
-      <div class="livro-admin-card">
-        <strong>${l.titulo}</strong>
-        ${l.autor ? `<span> — ${l.autor}</span>` : ""}
-        <a href="${l.arquivo_url}" target="_blank">🔗 Ver arquivo</a>
-        <button class="btn-del" onclick="deletarLivro(${l.id})">🗑 Remover</button>
-      </div>
-    `).join("")
+    div.innerHTML = livros.map(l => {
+      const tagsPills = Array.isArray(l.tags) && l.tags.length
+        ? l.tags.map(t => `<span class="tag-pill-admin">#${t}</span>`).join("")
+        : ""
+      // Escapar aspas nos dados para passar inline no onclick
+      const tituloEsc    = (l.titulo    || "").replace(/'/g, "\\'")
+      const autorEsc     = (l.autor     || "").replace(/'/g, "\\'")
+      const descricaoEsc = (l.descricao || "").replace(/'/g, "\\'")
+      const tagsStr      = Array.isArray(l.tags) ? l.tags.map(t => "#"+t).join(" ") : ""
+
+      return `
+        <div class="livro-admin-card">
+          <div style="flex:1">
+            <strong>${l.titulo}</strong>
+            ${l.autor ? `<span> — ${l.autor}</span>` : ""}
+            <div style="margin-top:4px">${tagsPills}</div>
+          </div>
+          <a href="${l.arquivo_url}" target="_blank">🔗 Arquivo</a>
+          <button onclick="abrirModal(${l.id},'${tituloEsc}','${autorEsc}','${descricaoEsc}','${tagsStr}')">✏️ Editar</button>
+          <button class="btn-del" onclick="deletarLivro(${l.id})">🗑 Remover</button>
+        </div>
+      `
+    }).join("")
   } catch (err) {
     if (tentativa < 4) {
       const espera = tentativa * 3
@@ -123,10 +216,79 @@ async function carregarLivrosAdmin(tentativa = 1) {
   }
 }
 
+// ── Modal: abrir ──
+function abrirModal(id, titulo, autor, descricao, tags) {
+  idEditando = id
+  document.getElementById("edit-titulo").value    = titulo
+  document.getElementById("edit-autor").value     = autor
+  document.getElementById("edit-descricao").value = descricao
+  document.getElementById("edit-tags").value      = tags
+
+  // Atualizar preview de tags no modal
+  const m = tags.match(/#[\wÀ-ú]+/g) || []
+  document.getElementById("edit-tags-preview").innerHTML =
+    m.map(t => `<span class="tag-pill">${t}</span>`).join("")
+
+  document.getElementById("edit-status").style.display = "none"
+  document.getElementById("modal-overlay").classList.add("aberto")
+}
+
+// ── Modal: fechar (clique fora ou botão cancelar) ──
+function fecharModal(event) {
+  if (event && event.target !== document.getElementById("modal-overlay")) return
+  document.getElementById("modal-overlay").classList.remove("aberto")
+  idEditando = null
+}
+
+// Fechar com Escape
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") fecharModal()
+})
+
+// ── Modal: salvar edição ──
+async function salvarEdicao() {
+  if (!idEditando) return
+
+  const titulo    = document.getElementById("edit-titulo").value.trim()
+  const autor     = document.getElementById("edit-autor").value.trim()
+  const descricao = document.getElementById("edit-descricao").value.trim()
+  const tags      = document.getElementById("edit-tags").value.trim()
+
+  if (!titulo) {
+    mostrarEditStatus("O título não pode ficar vazio.", "erro")
+    return
+  }
+
+  const btn = document.querySelector(".modal-btns button:last-child")
+  btn.disabled = true; btn.textContent = "Salvando..."
+
+  try {
+    const res  = await fetch(`${API}/livros/${idEditando}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ titulo, autor, descricao, tags })
+    })
+    const data = await res.json()
+
+    if (data.status === "ok") {
+      document.getElementById("modal-overlay").classList.remove("aberto")
+      idEditando = null
+      carregarLivrosAdmin()
+    } else {
+      mostrarEditStatus("Erro: " + data.message, "erro")
+    }
+  } catch (err) {
+    mostrarEditStatus("Erro de conexão.", "erro")
+  } finally {
+    btn.disabled = false; btn.textContent = "💾 Salvar"
+  }
+}
+
+// ── Deletar ──
 async function deletarLivro(id) {
   if (!confirm("Remover este livro?")) return
   try {
-    const res = await fetch(`${API}/livros/${id}`, { method: "DELETE" })
+    const res  = await fetch(`${API}/livros/${id}`, { method: "DELETE" })
     const data = await res.json()
     if (data.status === "ok") carregarLivrosAdmin()
     else alert("Erro ao remover: " + data.message)
@@ -135,11 +297,15 @@ async function deletarLivro(id) {
   }
 }
 
+// ── Helpers ──
 function mostrarStatus(msg, tipo) {
   const el = document.getElementById("status-msg")
-  el.textContent = msg
-  el.className = tipo
-  el.style.display = "block"
+  el.textContent = msg; el.className = tipo; el.style.display = "block"
+}
+
+function mostrarEditStatus(msg, tipo) {
+  const el = document.getElementById("edit-status")
+  el.textContent = msg; el.className = tipo; el.style.display = "block"
 }
 
 carregarLivrosAdmin()
