@@ -4,7 +4,6 @@
 <head>
 
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Leitor</title>
@@ -13,6 +12,7 @@
 
 body{
 margin:0;
+background:#111;
 }
 
 iframe{
@@ -27,16 +27,16 @@ border:none;
 
 <body>
 
-<iframe id="pdf"></iframe>
+<iframe id="viewer"></iframe>
 
 <script>
 
-let params=new URLSearchParams(window.location.search)
+let params = new URLSearchParams(window.location.search)
 
-let pdf=params.get("pdf")
+let pdf = params.get("pdf")
 
-document.getElementById("pdf").src=
-"https://edischinho-github-io.onrender.com/"+pdf
+document.getElementById("viewer").src =
+"https://docs.google.com/gview?embedded=1&url=https://edischinho-github-io.onrender.com/"+pdf
 
 </script>
 
