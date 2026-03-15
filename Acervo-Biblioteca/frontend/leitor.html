@@ -1,66 +1,105 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Leitor</title>
-<style>
-body{margin:0;background:#111;font-family:Arial;}
-.topo{position:sticky;top:0;background:#000;color:white;padding:10px;text-align:center;z-index:10;}
-#viewer{max-width:900px;margin:auto;padding:10px;}
-.page{margin-bottom:20px;display:flex;justify-content:center;}
-canvas{width:100%;background:white;border-radius:5px;box-shadow:0 0 8px rgba(0,0,0,0.6);}
-.placeholder{width:100%;height:900px;background:#222;border-radius:5px;}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leitor — Stronghold Library</title>
+  <style>
+    body { margin: 0; background: #111; font-family: Arial, sans-serif; color: white; }
+    .topo {
+      position: sticky; top: 0; background: #000;
+      padding: 10px 20px; display: flex; align-items: center;
+      gap: 15px; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    }
+    .topo a { color: #aaa; text-decoration: none; font-size: 14px; }
+    .topo a:hover { color: white; }
+    .topo span { flex: 1; text-align: center; font-size: 15px; }
+    #viewer { max-width: 900px; margin: auto; padding: 10px; }
+    .page { margin-bottom: 20px; display: flex; justify-content: center; }
+    canvas { width: 100%; background: white; border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.6); }
+    .placeholder { width: 100%; height: 900px; background: #222; border-radius: 5px; }
+    #erro { text-align: center; padding: 40px; color: #f66; }
+  </style>
 </head>
 <body>
-<div class="topo">Leitor Stronghold Library</div>
+
+<div class="topo">
+  <a href="javascript:history.back()">← Voltar</a>
+  <span>Stronghold Library — Leitor</span>
+</div>
+
 <div id="viewer"></div>
+<div id="erro" style="display:none"></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-let params=new URLSearchParams(window.location.search)
-let pdfFile=params.get("pdf")
-let url="https://SEU_BACKEND_RENDER/uploads/"+pdfFile
-let viewer=document.getElementById("viewer")
-let pdfDoc=null
+  // ✅ Recebe a URL completa do Supabase como parâmetro
+  const params  = new URLSearchParams(window.location.search)
+  const pdfUrl  = params.get("pdf")
+  const viewer  = document.getElementById("viewer")
+  let pdfDoc    = null
 
-const observer = new IntersectionObserver(entries=>{
-  entries.forEach(entry=>{
-    if(entry.isIntersecting){
-      let pageDiv=entry.target
-      let pageIndex=[...viewer.children].indexOf(pageDiv)+1
-      renderPage(pageIndex,pageDiv)
-      observer.unobserve(pageDiv)
-    }
-  })
-},{rootMargin:"300px"})
-
-pdfjsLib.getDocument(url).promise.then(pdf=>{
-  pdfDoc=pdf
-  for(let i=1;i<=pdf.numPages;i++){
-    let pageDiv=document.createElement("div")
-    pageDiv.className="page"
-    let placeholder=document.createElement("div")
-    placeholder.className="placeholder"
-    pageDiv.appendChild(placeholder)
-    viewer.appendChild(pageDiv)
-    observer.observe(pageDiv)
+  if (!pdfUrl) {
+    mostrarErro("Nenhum arquivo especificado.")
+  } else {
+    carregarPDF(decodeURIComponent(pdfUrl))
   }
-})
 
-function renderPage(num,container){
-  pdfDoc.getPage(num).then(page=>{
-    let scale=1.5
-    let viewport=page.getViewport({scale:scale})
-    let canvas=document.createElement("canvas")
-    let context=canvas.getContext("2d")
-    canvas.height=viewport.height
-    canvas.width=viewport.width
-    container.innerHTML=""
-    container.appendChild(canvas)
-    page.render({canvasContext:context,viewport:viewport})
-  })
-}
+  function carregarPDF(url) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
+
+    pdfjsLib.getDocument(url).promise
+      .then(pdf => {
+        pdfDoc = pdf
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const pageDiv = document.createElement("div")
+          pageDiv.className = "page"
+          const placeholder = document.createElement("div")
+          placeholder.className = "placeholder"
+          pageDiv.appendChild(placeholder)
+          viewer.appendChild(pageDiv)
+          observer.observe(pageDiv)
+        }
+      })
+      .catch(err => {
+        mostrarErro("Erro ao carregar o PDF: " + err.message)
+      })
+  }
+
+  // Lazy loading: renderiza só quando a página entra na tela
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const pageDiv   = entry.target
+        const pageIndex = [...viewer.children].indexOf(pageDiv) + 1
+        renderPage(pageIndex, pageDiv)
+        observer.unobserve(pageDiv)
+      }
+    })
+  }, { rootMargin: "300px" })
+
+  function renderPage(num, container) {
+    pdfDoc.getPage(num).then(page => {
+      const scale    = window.innerWidth < 600 ? 1.0 : 1.5
+      const viewport = page.getViewport({ scale })
+      const canvas   = document.createElement("canvas")
+      const ctx      = canvas.getContext("2d")
+      canvas.height  = viewport.height
+      canvas.width   = viewport.width
+      container.innerHTML = ""
+      container.appendChild(canvas)
+      page.render({ canvasContext: ctx, viewport })
+    })
+  }
+
+  function mostrarErro(msg) {
+    viewer.style.display = "none"
+    const el = document.getElementById("erro")
+    el.textContent = msg
+    el.style.display = "block"
+  }
 </script>
+
 </body>
 </html>
