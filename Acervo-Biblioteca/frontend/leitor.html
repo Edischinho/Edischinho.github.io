@@ -12,27 +12,44 @@
 
 body{
 margin:0;
-font-family:Arial;
 background:#111;
 color:white;
+font-family:Arial;
 text-align:center;
 }
 
-iframe{
+#viewer{
+max-width:900px;
+margin:auto;
+padding:10px;
+}
+
+canvas{
 width:100%;
-height:95vh;
-border:none;
+margin-bottom:15px;
+background:white;
 }
 
 .topo{
-padding:10px;
+position:sticky;
+top:0;
 background:#000;
+padding:10px;
+z-index:10;
 }
 
-a{
+button{
+padding:8px 12px;
+margin:5px;
+border:none;
+background:#333;
 color:white;
-text-decoration:none;
-font-size:14px;
+cursor:pointer;
+border-radius:4px;
+}
+
+button:hover{
+background:#555;
 }
 
 </style>
@@ -42,22 +59,91 @@ font-size:14px;
 <body>
 
 <div class="topo">
-<a id="download" target="_blank">Abrir em nova aba</a>
+
+<button onclick="prevPage()">◀</button>
+
+<span id="pageInfo">Página 1</span>
+
+<button onclick="nextPage()">▶</button>
+
 </div>
 
-<iframe id="pdf"></iframe>
+<div id="viewer"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <script>
 
 let params = new URLSearchParams(window.location.search)
 
-let pdf = params.get("pdf")
+let pdfFile = params.get("pdf")
 
-let url = "https://edischinho-github-io.onrender.com/"+pdf
+let url = "https://edischinho-github-io.onrender.com/"+pdfFile
 
-document.getElementById("pdf").src = url
+let pdfDoc=null
+let pageNum=1
 
-document.getElementById("download").href = url
+pdfjsLib.getDocument(url).promise.then(function(pdf){
+
+pdfDoc=pdf
+
+renderPage(pageNum)
+
+})
+
+function renderPage(num){
+
+pdfDoc.getPage(num).then(function(page){
+
+let scale=1.5
+
+let viewport=page.getViewport({scale:scale})
+
+let canvas=document.createElement("canvas")
+
+let context=canvas.getContext("2d")
+
+canvas.height=viewport.height
+canvas.width=viewport.width
+
+let viewer=document.getElementById("viewer")
+
+viewer.innerHTML=""
+viewer.appendChild(canvas)
+
+let renderContext={
+canvasContext:context,
+viewport:viewport
+}
+
+page.render(renderContext)
+
+document.getElementById("pageInfo").innerText=
+"Página "+num+" / "+pdfDoc.numPages
+
+})
+
+}
+
+function nextPage(){
+
+if(pageNum>=pdfDoc.numPages) return
+
+pageNum++
+
+renderPage(pageNum)
+
+}
+
+function prevPage(){
+
+if(pageNum<=1) return
+
+pageNum--
+
+renderPage(pageNum)
+
+}
 
 </script>
 
