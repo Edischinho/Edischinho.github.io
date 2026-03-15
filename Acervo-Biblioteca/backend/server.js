@@ -67,7 +67,10 @@ app.get("/livros", async (req, res) => {
 // ✅ Adicionar livro — recebe multipart, sobe para Storage, salva metadados na tabela
 app.post("/addLivro", upload.single("arquivo"), async (req, res) => {
   try {
-    const { titulo, autor = "", descricao = "" } = req.body
+    const { titulo, autor = "", descricao = "", tags: tagsRaw = "" } = req.body
+
+    // Parseia tags: extrai palavras após # e guarda como array
+    const tags = (tagsRaw.match(/#[\wÀ-ú]+/g) || []).map(t => t.slice(1).toLowerCase())
 
     if (!req.file) {
       return res.status(400).json({ status: "erro", message: "Nenhum arquivo enviado" })
@@ -101,7 +104,7 @@ app.post("/addLivro", upload.single("arquivo"), async (req, res) => {
     // 3. Salvar metadados na tabela "livros" do Supabase
     const { error: dbError } = await supabase
       .from("livros")
-      .insert([{ titulo, autor, descricao, arquivo_url: publicUrl }])
+      .insert([{ titulo, autor, descricao, tags, arquivo_url: publicUrl }])
 
     if (dbError) throw dbError
 
@@ -115,6 +118,38 @@ app.post("/addLivro", upload.single("arquivo"), async (req, res) => {
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path)
     }
+    res.status(500).json({ status: "erro", message: err.message })
+  }
+})
+
+// ✅ Editar livro — atualiza titulo, autor, descricao e/ou tags
+app.patch("/livros/:id", async (req, res) => {
+  try {
+    const { id } = req.params
+    const { titulo, autor, descricao, tags: tagsRaw } = req.body
+
+    const updates = {}
+    if (titulo    !== undefined) updates.titulo    = titulo
+    if (autor     !== undefined) updates.autor     = autor
+    if (descricao !== undefined) updates.descricao = descricao
+    if (tagsRaw   !== undefined) {
+      updates.tags = (tagsRaw.match(/#[\wÀ-ú]+/g) || []).map(t => t.slice(1).toLowerCase())
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ status: "erro", message: "Nenhum campo para atualizar" })
+    }
+
+    const { error } = await supabase
+      .from("livros")
+      .update(updates)
+      .eq("id", id)
+
+    if (error) throw error
+
+    res.json({ status: "ok" })
+  } catch (err) {
+    console.error("Erro ao editar livro:", err.message)
     res.status(500).json({ status: "erro", message: err.message })
   }
 })
