@@ -1,15 +1,41 @@
 <!DOCTYPE html>
 <html>
 
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Stronghold Library</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
 <body>
 
-<h1>Livraria</h1>
+<header>
+Stronghold Library
+</header>
 
-<input id="busca" placeholder="Pesquisar">
+<div class="container">
+
+<div class="busca">
+
+<input id="busca" placeholder="Pesquisar livro">
 
 <button onclick="pesquisar()">Pesquisar</button>
 
+</div>
+
 <div id="livros"></div>
+
+</div>
+
+<footer>
+Criado por Hiru Tagamashi
+</footer>
 
 <script>
 
@@ -35,9 +61,9 @@ livros.forEach(l=>{
 
 div.innerHTML+=`
 
-<div>
+<div class="livro">
 
-<img width="120" src="https://edischinho-github-io.onrender.com/${l.capa}">
+<img src="https://edischinho-github-io.onrender.com/${l.capa}">
 
 <p>${l.titulo}</p>
 
@@ -57,9 +83,11 @@ function pesquisar(){
 
 let t=document.getElementById("busca").value.toLowerCase()
 
-let f=lista.filter(l=>l.titulo.toLowerCase().includes(t))
+let filtrados=lista.filter(l=>
+l.titulo.toLowerCase().includes(t)
+)
 
-mostrar(f)
+mostrar(filtrados)
 
 }
 
@@ -68,4 +96,5 @@ carregar()
 </script>
 
 </body>
+
 </html>
