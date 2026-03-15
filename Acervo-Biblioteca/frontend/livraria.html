@@ -1,43 +1,84 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Livraria</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Livraria — Stronghold Library</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h2>Livraria</h2>
-<input id="search" placeholder="Buscar livro">
-<button onclick="filtrar()">Pesquisar</button>
-<div id="livros"></div>
+
+<header>Stronghold Library</header>
+
+<div class="container">
+  <div class="busca">
+    <input id="search" placeholder="Buscar livro...">
+    <button onclick="filtrar()">Pesquisar</button>
+  </div>
+
+  <div id="livros"></div>
+</div>
+
+<footer>Criado por Hiru Tagamashi</footer>
 
 <script>
+const API = "https://edischinho-github-io.onrender.com"
 let livros = []
 
-async function carregarLivros(){
-  const res = await fetch("https://SEU_BACKEND_RENDER/livros")
-  livros = await res.json()
-  mostrarLivros(livros)
+async function carregarLivros() {
+  document.getElementById("livros").innerHTML = "<p>Carregando...</p>"
+  try {
+    const res = await fetch(`${API}/livros`)
+    livros = await res.json()
+    mostrarLivros(livros)
+  } catch (err) {
+    document.getElementById("livros").innerHTML = "<p>Erro ao carregar livros. Tente novamente.</p>"
+  }
 }
 
-function mostrarLivros(lista){
+function mostrarLivros(lista) {
   const div = document.getElementById("livros")
+
+  if (!lista.length) {
+    div.innerHTML = "<p>Nenhum livro encontrado.</p>"
+    return
+  }
+
   div.innerHTML = ""
-  lista.forEach(l=>{
+  lista.forEach(l => {
     const card = document.createElement("div")
-    card.innerHTML = `<h3>${l.titulo}</h3>
-                      <a href="${l.capa}" target="_blank">Abrir livro</a>`
+    card.className = "livro"
+
+    // ✅ usa arquivo_url — URL permanente do Supabase Storage
+    const isPDF = l.arquivo_url && l.arquivo_url.toLowerCase().endsWith(".pdf")
+
+    card.innerHTML = `
+      <div class="livro-info">
+        <h3>${l.titulo}</h3>
+        ${l.autor ? `<p class="autor">${l.autor}</p>` : ""}
+        ${l.descricao ? `<p class="descricao">${l.descricao}</p>` : ""}
+      </div>
+      <a class="btn-abrir" href="${isPDF ? "leitor.html?pdf=" + encodeURIComponent(l.arquivo_url) : l.arquivo_url}" target="${isPDF ? "_self" : "_blank"}">
+        ${isPDF ? "📖 Ler" : "⬇ Baixar"}
+      </a>
+    `
     div.appendChild(card)
   })
 }
 
-function filtrar(){
+function filtrar() {
   const termo = document.getElementById("search").value.toLowerCase()
-  mostrarLivros(livros.filter(l=>l.titulo.toLowerCase().includes(termo)))
+  mostrarLivros(livros.filter(l =>
+    l.titulo.toLowerCase().includes(termo) ||
+    (l.autor && l.autor.toLowerCase().includes(termo))
+  ))
 }
+
+// Filtrar ao digitar
+document.getElementById("search").addEventListener("input", filtrar)
 
 carregarLivros()
 </script>
+
 </body>
 </html>
