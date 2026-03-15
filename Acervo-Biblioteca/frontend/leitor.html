@@ -6,26 +6,85 @@
   <title>Leitor — Stronghold Library</title>
   <style>
     body { margin: 0; background: #111; font-family: Arial, sans-serif; color: white; }
+
+    /* ── Barra superior ── */
     .topo {
       position: sticky; top: 0; background: #000;
-      padding: 10px 20px; display: flex; align-items: center;
-      gap: 15px; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+      padding: 10px 16px; display: flex; align-items: center;
+      gap: 10px; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+      flex-wrap: wrap;
     }
-    .topo a { color: #aaa; text-decoration: none; font-size: 14px; }
+    .topo a {
+      color: #aaa; text-decoration: none; font-size: 14px;
+      white-space: nowrap;
+    }
     .topo a:hover { color: white; }
-    .topo span { flex: 1; text-align: center; font-size: 15px; }
+    .topo-titulo {
+      flex: 1; text-align: center; font-size: 14px;
+      color: #ccc; white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; min-width: 0;
+    }
+
+    /* ── Controles ── */
+    .controles {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .ctrl-btn {
+      background: #222; color: white; border: none;
+      border-radius: 6px; padding: 6px 12px; font-size: 13px;
+      cursor: pointer; transition: background 0.15s; white-space: nowrap;
+    }
+    .ctrl-btn:hover { background: #444; }
+
+    /* ── Input ir para página ── */
+    .ir-pagina {
+      display: flex; align-items: center; gap: 5px;
+    }
+    .ir-pagina input {
+      width: 52px; padding: 5px 7px; font-size: 13px;
+      border-radius: 6px; border: 1px solid #444;
+      background: #222; color: white; text-align: center;
+    }
+    .ir-pagina input:focus { outline: 2px solid #888; }
+    .pagina-info { font-size: 12px; color: #888; white-space: nowrap; }
+
+    /* ── Viewer ── */
     #viewer { max-width: 900px; margin: auto; padding: 10px; }
-    .page { margin-bottom: 20px; display: flex; justify-content: center; }
-    canvas { width: 100%; background: white; border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.6); }
+    .page   { margin-bottom: 20px; display: flex; justify-content: center; scroll-margin-top: 70px; }
+    canvas  { width: 100%; background: white; border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.6); }
     .placeholder { width: 100%; height: 900px; background: #222; border-radius: 5px; }
+
     #erro { text-align: center; padding: 40px; color: #f66; }
+
+    /* ── Highlight de página alvo ── */
+    .page.destaque canvas {
+      box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,0.4);
+    }
+
+    @media (max-width: 600px) {
+      .topo-titulo { display: none; }
+      .ctrl-btn { padding: 6px 9px; font-size: 12px; }
+    }
   </style>
 </head>
 <body>
 
 <div class="topo">
   <a href="javascript:history.back()">← Voltar</a>
-  <span>Stronghold Library — Leitor</span>
+
+  <span class="topo-titulo">Stronghold Library — Leitor</span>
+
+  <div class="controles">
+    <!-- Ir para página -->
+    <div class="ir-pagina">
+      <input id="input-pagina" type="number" min="1" placeholder="Pág." title="Ir para página">
+      <button class="ctrl-btn" onclick="irParaPagina()">Ir</button>
+      <span class="pagina-info" id="pagina-info"></span>
+    </div>
+
+    <!-- Download -->
+    <button class="ctrl-btn" onclick="baixarPDF()" title="Baixar PDF">⬇ Download</button>
+  </div>
 </div>
 
 <div id="viewer"></div>
@@ -33,11 +92,10 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-  // ✅ Recebe a URL completa do Supabase como parâmetro
-  const params  = new URLSearchParams(window.location.search)
-  const pdfUrl  = params.get("pdf")
-  const viewer  = document.getElementById("viewer")
-  let pdfDoc    = null
+  const params = new URLSearchParams(window.location.search)
+  const pdfUrl = params.get("pdf")
+  const viewer = document.getElementById("viewer")
+  let pdfDoc   = null
 
   if (!pdfUrl) {
     mostrarErro("Nenhum arquivo especificado.")
@@ -45,6 +103,7 @@
     carregarPDF(decodeURIComponent(pdfUrl))
   }
 
+  // ── Carregar PDF ──
   function carregarPDF(url) {
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
@@ -52,9 +111,13 @@
     pdfjsLib.getDocument(url).promise
       .then(pdf => {
         pdfDoc = pdf
+        document.getElementById("pagina-info").textContent = `/ ${pdf.numPages}`
+        document.getElementById("input-pagina").max = pdf.numPages
+
         for (let i = 1; i <= pdf.numPages; i++) {
           const pageDiv = document.createElement("div")
           pageDiv.className = "page"
+          pageDiv.dataset.page = i
           const placeholder = document.createElement("div")
           placeholder.className = "placeholder"
           pageDiv.appendChild(placeholder)
@@ -62,12 +125,10 @@
           observer.observe(pageDiv)
         }
       })
-      .catch(err => {
-        mostrarErro("Erro ao carregar o PDF: " + err.message)
-      })
+      .catch(err => mostrarErro("Erro ao carregar o PDF: " + err.message))
   }
 
-  // Lazy loading: renderiza só quando a página entra na tela
+  // ── Lazy loading ──
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
@@ -93,6 +154,60 @@
     })
   }
 
+  // ── Ir para página ──
+  function irParaPagina() {
+    if (!pdfDoc) return
+
+    const input = document.getElementById("input-pagina")
+    let num = parseInt(input.value)
+
+    if (isNaN(num) || num < 1) num = 1
+    if (num > pdfDoc.numPages) num = pdfDoc.numPages
+    input.value = num
+
+    const alvo = viewer.querySelector(`.page[data-page="${num}"]`)
+    if (!alvo) return
+
+    // Renderiza a página imediatamente se ainda for placeholder
+    if (alvo.querySelector(".placeholder")) {
+      renderPage(num, alvo)
+      observer.unobserve(alvo)
+    }
+
+    // Pequeno delay para garantir que o canvas foi inserido antes do scroll
+    setTimeout(() => {
+      alvo.scrollIntoView({ behavior: "smooth", block: "start" })
+
+      // Destaque visual temporário
+      alvo.classList.add("destaque")
+      setTimeout(() => alvo.classList.remove("destaque"), 1800)
+    }, 80)
+  }
+
+  // Enter no campo de página também navega
+  document.getElementById("input-pagina").addEventListener("keydown", e => {
+    if (e.key === "Enter") irParaPagina()
+  })
+
+  // ── Download ──
+  async function baixarPDF() {
+    const url = decodeURIComponent(pdfUrl)
+    try {
+      const res  = await fetch(url)
+      const blob = await res.blob()
+      const a    = document.createElement("a")
+      a.href     = URL.createObjectURL(blob)
+      // Nome do arquivo a partir da URL
+      a.download = url.split("/").pop().replace(/^\d+-/, "") || "livro.pdf"
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch (err) {
+      // Fallback: abre direto no browser (que oferece o download nativamente)
+      window.open(url, "_blank")
+    }
+  }
+
+  // ── Erro ──
   function mostrarErro(msg) {
     viewer.style.display = "none"
     const el = document.getElementById("erro")
