@@ -1,42 +1,56 @@
 <!DOCTYPE html>
 <html>
-<head>
-<meta charset="UTF-8">
-<title>Painel Admin</title>
-<link rel="stylesheet" href="style.css">
-</head>
 
 <body>
 
-<h2>Adicionar Livro</h2>
+<h1>Painel Admin</h1>
 
-<form id="form">
+<input id="titulo" placeholder="Título">
 
-<input name="titulo" placeholder="titulo">
+<br><br>
 
-<input name="capa" type="file">
+<label>Capa:</label>
+<input type="file" id="capa">
 
-<button>Enviar</button>
+<br><br>
 
-</form>
+<label>PDF:</label>
+<input type="file" id="pdf">
+
+<br><br>
+
+<button onclick="enviar()">Enviar Livro</button>
 
 <script>
 
-document.getElementById("form").onsubmit=async(e)=>{
+async function enviar(){
 
-e.preventDefault()
+let titulo=document.getElementById("titulo").value
+let capa=document.getElementById("capa").files[0]
+let pdf=document.getElementById("pdf").files[0]
 
-let form=new FormData(e.target)
+let form=new FormData()
 
-await fetch("https://edischinho-github-io.onrender.com/addLivro",{
+form.append("titulo",titulo)
+form.append("capa",capa)
+form.append("pdf",pdf)
+
+let res=await fetch("https://edischinho-github-io.onrender.com/addLivro",{
 
 method:"POST",
 body:form
 
 })
 
-alert("Livro adicionado")
+let data=await res.json()
+
+if(data.status==="ok"){
+alert("Livro enviado")
+}
 
 }
 
 </script>
+
+</body>
+</html>
