@@ -6,58 +6,107 @@ const path = require("path")
 
 const app = express()
 
+// CORS (permite acesso do Netlify)
 app.use(cors({
 origin:"https://strongholdlibrary.netlify.app"
 }))
 
 app.use(express.json())
 
-const upload = multer()
+// pasta uploads
+const uploadDir = path.join(__dirname,"uploads")
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN
+if(!fs.existsSync(uploadDir)){
+fs.mkdirSync(uploadDir)
+}
 
-const OWNER = "SEU_USUARIO_GITHUB"
-const REPO = "SEU_REPOSITORIO"
-const BRANCH = "main"
+// servir arquivos estáticos
+app.use("/uploads",express.static(uploadDir))
 
-app.post("/addLivro", upload.single("capa"), async (req,res)=>{
+// arquivo livros
+const livrosFile = path.join(__dirname,"livros.json")
+
+if(!fs.existsSync(livrosFile)){
+fs.writeFileSync(livrosFile,"[]")
+}
+
+// login admin
+const ADMIN_USER = "admin"
+const ADMIN_PASS = "1234"
+
+// configuração upload
+const storage = multer.diskStorage({
+
+destination:(req,file,cb)=>{
+cb(null,uploadDir)
+},
+
+filename:(req,file,cb)=>{
+cb(null,Date.now()+"-"+file.originalname)
+}
+
+})
+
+const upload = multer({storage})
+
+// rota teste
+app.get("/",(req,res)=>{
+res.json({status:"API funcionando"})
+})
+
+// login
+app.post("/login",(req,res)=>{
+
+const {user,password}=req.body
+
+if(user===ADMIN_USER && password===ADMIN_PASS){
+res.json({status:"ok"})
+}else{
+res.json({status:"erro"})
+}
+
+})
+
+// listar livros
+app.get("/livros",(req,res)=>{
+
+let livros = JSON.parse(fs.readFileSync(livrosFile))
+
+res.json(livros)
+
+})
+
+// adicionar livro
+app.post("/addLivro",upload.single("capa"),(req,res)=>{
 
 try{
 
-const titulo = req.body.titulo
-const file = req.file
+let livros = JSON.parse(fs.readFileSync(livrosFile))
 
-const base64 = file.buffer.toString("base64")
+let novoLivro = {
+titulo:req.body.titulo,
+capa:"uploads/"+req.file.filename
+}
 
-const path = `uploads/${Date.now()}-${file.originalname}`
+livros.push(novoLivro)
 
-const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`
+fs.writeFileSync(livrosFile,JSON.stringify(livros,null,2))
 
-await fetch(url,{
-method:"PUT",
-headers:{
-Authorization:`token ${GITHUB_TOKEN}`,
-"Content-Type":"application/json"
-},
-body:JSON.stringify({
-message:`novo livro ${titulo}`,
-content:base64,
-branch:BRANCH
-})
-})
-
-res.json({
-status:"ok",
-capa:`https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${path}`
-})
+res.json({status:"ok"})
 
 }catch(err){
 
 console.error(err)
+
 res.json({status:"erro"})
 
 }
 
 })
 
-app.listen(process.env.PORT || 3000)
+// porta
+const PORT = process.env.PORT || 3000
+
+app.listen(PORT,()=>{
+console.log("Servidor rodando na porta "+PORT)
+})
