@@ -1,75 +1,34 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-
 <meta charset="UTF-8">
-
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Admin</title>
-
 <link rel="stylesheet" href="style.css">
-
 </head>
-
 <body>
-
-<header>Painel Admin</header>
-
-<div class="container">
-
+<h2>Adicionar Livro</h2>
 <input id="titulo" placeholder="Título do livro">
-
-<br><br>
-
-<label>Capa</label>
-
 <input type="file" id="capa">
-
-<br><br>
-
-<label>PDF</label>
-
-<input type="file" id="pdf">
-
-<br><br>
-
-<button onclick="enviar()">Enviar livro</button>
-
-</div>
+<button onclick="addLivro()">Enviar</button>
 
 <script>
+async function addLivro(){
+  const titulo = document.getElementById("titulo").value
+  const file = document.getElementById("capa").files[0]
 
-async function enviar(){
+  const formData = new FormData()
+  formData.append("titulo", titulo)
+  formData.append("capa", file)
 
-let titulo=document.getElementById("titulo").value
-let capa=document.getElementById("capa").files[0]
-let pdf=document.getElementById("pdf").files[0]
+  const res = await fetch("https://SEU_BACKEND_RENDER/addLivro",{
+    method:"POST",
+    body: formData
+  })
 
-let form=new FormData()
-
-form.append("titulo",titulo)
-form.append("capa",capa)
-form.append("pdf",pdf)
-
-let res=await fetch("https://edischinho-github-io.onrender.com/addLivro",{
-
-method:"POST",
-body:form
-
-})
-
-let data=await res.json()
-
-if(data.status==="ok"){
-alert("Livro enviado")
+  const data = await res.json()
+  if(data.status==="ok") alert("Livro enviado!")
+  else alert("Erro: "+data.message)
 }
-
-}
-
 </script>
-
 </body>
-
 </html>
