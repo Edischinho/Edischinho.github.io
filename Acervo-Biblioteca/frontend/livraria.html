@@ -1,100 +1,43 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Stronghold Library</title>
-
+<title>Livraria</title>
 <link rel="stylesheet" href="style.css">
-
 </head>
-
 <body>
-
-<header>
-Stronghold Library
-</header>
-
-<div class="container">
-
-<div class="busca">
-
-<input id="busca" placeholder="Pesquisar livro">
-
-<button onclick="pesquisar()">Pesquisar</button>
-
-</div>
-
+<h2>Livraria</h2>
+<input id="search" placeholder="Buscar livro">
+<button onclick="filtrar()">Pesquisar</button>
 <div id="livros"></div>
 
-</div>
-
-<footer>
-Criado por Hiru Tagamashi
-</footer>
-
 <script>
+let livros = []
 
-let lista=[]
-
-async function carregar(){
-
-let res=await fetch("https://edischinho-github-io.onrender.com/livros")
-
-lista=await res.json()
-
-mostrar(lista)
-
+async function carregarLivros(){
+  const res = await fetch("https://SEU_BACKEND_RENDER/livros")
+  livros = await res.json()
+  mostrarLivros(livros)
 }
 
-function mostrar(livros){
-
-let div=document.getElementById("livros")
-
-div.innerHTML=""
-
-livros.forEach(l=>{
-
-div.innerHTML+=`
-
-<div class="livro">
-
-<img src="https://edischinho-github-io.onrender.com/${l.capa}">
-
-<p>${l.titulo}</p>
-
-<a href="leitor.html?pdf=${l.pdf}">
-<button>Ler</button>
-</a>
-
-</div>
-
-`
-
-})
-
+function mostrarLivros(lista){
+  const div = document.getElementById("livros")
+  div.innerHTML = ""
+  lista.forEach(l=>{
+    const card = document.createElement("div")
+    card.innerHTML = `<h3>${l.titulo}</h3>
+                      <a href="${l.capa}" target="_blank">Abrir livro</a>`
+    div.appendChild(card)
+  })
 }
 
-function pesquisar(){
-
-let t=document.getElementById("busca").value.toLowerCase()
-
-let filtrados=lista.filter(l=>
-l.titulo.toLowerCase().includes(t)
-)
-
-mostrar(filtrados)
-
+function filtrar(){
+  const termo = document.getElementById("search").value.toLowerCase()
+  mostrarLivros(livros.filter(l=>l.titulo.toLowerCase().includes(termo)))
 }
 
-carregar()
-
+carregarLivros()
 </script>
-
 </body>
-
 </html>
