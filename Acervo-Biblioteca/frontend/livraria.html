@@ -25,14 +25,43 @@
 const API = "https://edischinho-github-io.onrender.com"
 let livros = []
 
-async function carregarLivros() {
-  document.getElementById("livros").innerHTML = "<p>Carregando...</p>"
+// Acorda o servidor antes de qualquer requisição (Render dorme no plano gratuito)
+async function acordarServidor() {
   try {
-    const res = await fetch(`${API}/livros`)
+    await fetch(`${API}/`, { method: "GET", mode: "cors" })
+  } catch (_) {
+    // silencioso — só um ping
+  }
+}
+
+async function carregarLivros(tentativa = 1) {
+  const div = document.getElementById("livros")
+
+  if (tentativa === 1) {
+    div.innerHTML = "<p>Conectando ao servidor...</p>"
+    await acordarServidor()
+  }
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000) // 10s timeout
+
+    const res = await fetch(`${API}/livros`, { signal: controller.signal })
+    clearTimeout(timeout)
+
     livros = await res.json()
     mostrarLivros(livros)
   } catch (err) {
-    document.getElementById("livros").innerHTML = "<p>Erro ao carregar livros. Tente novamente.</p>"
+    if (tentativa < 4) {
+      const espera = tentativa * 3 // 3s, 6s, 9s
+      div.innerHTML = `<p>Servidor acordando... tentativa ${tentativa}/3. Aguarde ${espera}s.</p>`
+      setTimeout(() => carregarLivros(tentativa + 1), espera * 1000)
+    } else {
+      div.innerHTML = `
+        <p>Não foi possível conectar ao servidor.</p>
+        <button onclick="carregarLivros()">🔄 Tentar novamente</button>
+      `
+    }
   }
 }
 
