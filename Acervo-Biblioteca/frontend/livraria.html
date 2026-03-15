@@ -1,91 +1,53 @@
 <!DOCTYPE html>
 <html>
 
-<head>
-
-<meta charset="UTF-8">
-<title>Livraria</title>
-
-<style>
-
-body{
-font-family:Arial;
-padding:20px;
-}
-
-#busca{
-padding:10px;
-width:250px;
-}
-
-button{
-padding:10px;
-}
-
-#livros{
-margin-top:20px;
-display:grid;
-grid-template-columns:repeat(auto-fill,150px);
-gap:20px;
-}
-
-.livro{
-border:1px solid #ccc;
-padding:10px;
-text-align:center;
-}
-
-.livro img{
-width:120px;
-height:160px;
-object-fit:cover;
-}
-
-</style>
-
-</head>
-
 <body>
 
 <h1>Livraria</h1>
 
-<input id="busca" placeholder="Nome do livro">
+<input id="busca" placeholder="Pesquisar">
+
 <button onclick="pesquisar()">Pesquisar</button>
 
 <div id="livros"></div>
 
 <script>
 
-let livros=[]
+let lista=[]
 
 async function carregar(){
 
 let res=await fetch("https://edischinho-github-io.onrender.com/livros")
 
-livros=await res.json()
+lista=await res.json()
 
-mostrar(livros)
+mostrar(lista)
 
 }
 
-function mostrar(lista){
+function mostrar(livros){
 
-let container=document.getElementById("livros")
+let div=document.getElementById("livros")
 
-container.innerHTML=""
+div.innerHTML=""
 
-lista.forEach(livro=>{
+livros.forEach(l=>{
 
-let div=document.createElement("div")
+div.innerHTML+=`
 
-div.className="livro"
+<div>
 
-div.innerHTML=`
-<img src="https://edischinho-github-io.onrender.com/${livro.capa}">
-<p>${livro.titulo}</p>
+<img width="120" src="https://edischinho-github-io.onrender.com/${l.capa}">
+
+<p>${l.titulo}</p>
+
+<a href="leitor.html?pdf=${l.pdf}">
+<button>Ler</button>
+</a>
+
+</div>
+
 `
-
-container.appendChild(div)
 
 })
 
@@ -93,13 +55,11 @@ container.appendChild(div)
 
 function pesquisar(){
 
-let texto=document.getElementById("busca").value.toLowerCase()
+let t=document.getElementById("busca").value.toLowerCase()
 
-let filtrados=livros.filter(livro=>
-livro.titulo.toLowerCase().includes(texto)
-)
+let f=lista.filter(l=>l.titulo.toLowerCase().includes(t))
 
-mostrar(filtrados)
+mostrar(f)
 
 }
 
@@ -108,5 +68,4 @@ carregar()
 </script>
 
 </body>
-
 </html>
