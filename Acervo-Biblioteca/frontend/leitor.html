@@ -12,13 +12,27 @@
 
 body{
 margin:0;
+font-family:Arial;
 background:#111;
+color:white;
+text-align:center;
 }
 
 iframe{
 width:100%;
-height:100vh;
+height:95vh;
 border:none;
+}
+
+.topo{
+padding:10px;
+background:#000;
+}
+
+a{
+color:white;
+text-decoration:none;
+font-size:14px;
 }
 
 </style>
@@ -27,7 +41,11 @@ border:none;
 
 <body>
 
-<iframe id="viewer"></iframe>
+<div class="topo">
+<a id="download" target="_blank">Abrir em nova aba</a>
+</div>
+
+<iframe id="pdf"></iframe>
 
 <script>
 
@@ -35,8 +53,11 @@ let params = new URLSearchParams(window.location.search)
 
 let pdf = params.get("pdf")
 
-document.getElementById("viewer").src =
-"https://docs.google.com/gview?embedded=1&url=https://edischinho-github-io.onrender.com/"+pdf
+let url = "https://edischinho-github-io.onrender.com/"+pdf
+
+document.getElementById("pdf").src = url
+
+document.getElementById("download").href = url
 
 </script>
 
