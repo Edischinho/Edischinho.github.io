@@ -1,25 +1,43 @@
 <!DOCTYPE html>
 <html>
 
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Admin</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
 <body>
 
-<h1>Painel Admin</h1>
+<header>Painel Admin</header>
 
-<input id="titulo" placeholder="Título">
+<div class="container">
+
+<input id="titulo" placeholder="Título do livro">
 
 <br><br>
 
-<label>Capa:</label>
+<label>Capa</label>
+
 <input type="file" id="capa">
 
 <br><br>
 
-<label>PDF:</label>
+<label>PDF</label>
+
 <input type="file" id="pdf">
 
 <br><br>
 
-<button onclick="enviar()">Enviar Livro</button>
+<button onclick="enviar()">Enviar livro</button>
+
+</div>
 
 <script>
 
@@ -53,4 +71,5 @@ alert("Livro enviado")
 </script>
 
 </body>
+
 </html>
