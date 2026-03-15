@@ -1,31 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Login Admin</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>Login Admin — Stronghold Library</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h2>Login Admin</h2>
-<input id="user" placeholder="usuario">
-<input id="pass" type="password" placeholder="senha">
-<button onclick="login()">Entrar</button>
+
+<div class="form-wrap">
+  <h2>Login Admin</h2>
+  <input id="user" placeholder="Usuário" autocomplete="username">
+  <input id="pass" type="password" placeholder="Senha" autocomplete="current-password">
+  <button onclick="login()">Entrar</button>
+  <p id="erro" class="erro" style="display:none">Usuário ou senha incorretos.</p>
+</div>
 
 <script>
-async function login(){
-  let user = document.getElementById("user").value
-  let pass = document.getElementById("pass").value
+const API = "https://edischinho-github-io.onrender.com"
 
-  const res = await fetch("https://SEU_BACKEND_RENDER/login",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({user,password:pass})
-  })
-  
-  const data = await res.json()
-  if(data.status==="ok") location.href="admin.html"
-  else alert("login incorreto")
+async function login() {
+  const user = document.getElementById("user").value.trim()
+  const pass = document.getElementById("pass").value
+
+  if (!user || !pass) {
+    mostrarErro("Preencha todos os campos.")
+    return
+  }
+
+  try {
+    const res = await fetch(`${API}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // ✅ envia { user, password } — igual ao que server.js espera
+      body: JSON.stringify({ user, password: pass })
+    })
+
+    const data = await res.json()
+
+    if (data.status === "ok") {
+      location.href = "admin.html"
+    } else {
+      mostrarErro("Usuário ou senha incorretos.")
+    }
+  } catch (err) {
+    mostrarErro("Erro de conexão com o servidor.")
+  }
 }
+
+function mostrarErro(msg) {
+  const el = document.getElementById("erro")
+  el.textContent = msg
+  el.style.display = "block"
+}
+
+// Permitir Enter para logar
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter") login()
+})
 </script>
+
 </body>
 </html>
