@@ -18,6 +18,9 @@
 <script>
 const API = "https://edischinho-github-io.onrender.com"
 
+// Acorda o Render assim que a página abre
+fetch(`${API}/`, { method: "GET", mode: "cors" }).catch(() => {})
+
 async function login() {
   const user = document.getElementById("user").value.trim()
   const pass = document.getElementById("pass").value
