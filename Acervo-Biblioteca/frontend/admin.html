@@ -1,34 +1,140 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Admin</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Stronghold Library</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h2>Adicionar Livro</h2>
-<input id="titulo" placeholder="Título do livro">
-<input type="file" id="capa">
-<button onclick="addLivro()">Enviar</button>
+
+<header>Stronghold Library — Admin</header>
+
+<div class="container">
+  <h2>Adicionar Livro</h2>
+
+  <div class="form-wrap">
+    <input id="titulo" placeholder="Título do livro" required>
+    <input id="autor" placeholder="Autor (opcional)">
+    <textarea id="descricao" placeholder="Descrição (opcional)" rows="3"></textarea>
+    <label class="file-label">
+      Escolher arquivo (PDF ou imagem)
+      <input type="file" id="arquivo" accept=".pdf,image/*">
+    </label>
+    <span id="file-name">Nenhum arquivo selecionado</span>
+    <button onclick="addLivro()" id="btn-enviar">Enviar Livro</button>
+    <p id="status-msg" style="display:none"></p>
+  </div>
+
+  <hr>
+
+  <h2>Livros Cadastrados</h2>
+  <div id="livros-admin"></div>
+</div>
 
 <script>
-async function addLivro(){
-  const titulo = document.getElementById("titulo").value
-  const file = document.getElementById("capa").files[0]
+const API = "https://edischinho-github-io.onrender.com"
+
+// Mostrar nome do arquivo selecionado
+document.getElementById("arquivo").addEventListener("change", function () {
+  const name = this.files[0] ? this.files[0].name : "Nenhum arquivo selecionado"
+  document.getElementById("file-name").textContent = name
+})
+
+async function addLivro() {
+  const titulo     = document.getElementById("titulo").value.trim()
+  const autor      = document.getElementById("autor").value.trim()
+  const descricao  = document.getElementById("descricao").value.trim()
+  const arquivo    = document.getElementById("arquivo").files[0]
+
+  if (!titulo) { mostrarStatus("Digite o título do livro.", "erro"); return }
+  if (!arquivo) { mostrarStatus("Selecione um arquivo.", "erro"); return }
 
   const formData = new FormData()
   formData.append("titulo", titulo)
-  formData.append("capa", file)
+  formData.append("autor", autor)
+  formData.append("descricao", descricao)
+  // ✅ campo "arquivo" — igual ao upload.single("arquivo") no server.js
+  formData.append("arquivo", arquivo)
 
-  const res = await fetch("https://SEU_BACKEND_RENDER/addLivro",{
-    method:"POST",
-    body: formData
-  })
+  const btn = document.getElementById("btn-enviar")
+  btn.disabled = true
+  btn.textContent = "Enviando..."
+  mostrarStatus("Enviando para o servidor...", "info")
 
-  const data = await res.json()
-  if(data.status==="ok") alert("Livro enviado!")
-  else alert("Erro: "+data.message)
+  try {
+    const res = await fetch(`${API}/addLivro`, {
+      method: "POST",
+      body: formData
+    })
+
+    const data = await res.json()
+
+    if (data.status === "ok") {
+      mostrarStatus("✅ Livro enviado com sucesso!", "ok")
+      // limpar formulário
+      document.getElementById("titulo").value = ""
+      document.getElementById("autor").value = ""
+      document.getElementById("descricao").value = ""
+      document.getElementById("arquivo").value = ""
+      document.getElementById("file-name").textContent = "Nenhum arquivo selecionado"
+      carregarLivrosAdmin()
+    } else {
+      mostrarStatus("Erro: " + data.message, "erro")
+    }
+  } catch (err) {
+    mostrarStatus("Erro de conexão: " + err.message, "erro")
+  } finally {
+    btn.disabled = false
+    btn.textContent = "Enviar Livro"
+  }
 }
+
+async function carregarLivrosAdmin() {
+  try {
+    const res = await fetch(`${API}/livros`)
+    const livros = await res.json()
+    const div = document.getElementById("livros-admin")
+
+    if (!livros.length) {
+      div.innerHTML = "<p>Nenhum livro cadastrado ainda.</p>"
+      return
+    }
+
+    div.innerHTML = livros.map(l => `
+      <div class="livro-admin-card">
+        <strong>${l.titulo}</strong>
+        ${l.autor ? `<span> — ${l.autor}</span>` : ""}
+        <a href="${l.arquivo_url}" target="_blank">🔗 Ver arquivo</a>
+        <button class="btn-del" onclick="deletarLivro(${l.id})">🗑 Remover</button>
+      </div>
+    `).join("")
+  } catch (err) {
+    document.getElementById("livros-admin").innerHTML = "<p>Erro ao carregar livros.</p>"
+  }
+}
+
+async function deletarLivro(id) {
+  if (!confirm("Remover este livro?")) return
+  try {
+    const res = await fetch(`${API}/livros/${id}`, { method: "DELETE" })
+    const data = await res.json()
+    if (data.status === "ok") carregarLivrosAdmin()
+    else alert("Erro ao remover: " + data.message)
+  } catch (err) {
+    alert("Erro de conexão.")
+  }
+}
+
+function mostrarStatus(msg, tipo) {
+  const el = document.getElementById("status-msg")
+  el.textContent = msg
+  el.className = tipo
+  el.style.display = "block"
+}
+
+carregarLivrosAdmin()
 </script>
+
 </body>
 </html>
