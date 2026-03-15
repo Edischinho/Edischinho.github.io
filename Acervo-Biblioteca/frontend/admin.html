@@ -35,6 +35,9 @@
 <script>
 const API = "https://edischinho-github-io.onrender.com"
 
+// Acorda o Render assim que a página abre
+fetch(`${API}/`, { method: "GET", mode: "cors" }).catch(() => {})
+
 // Mostrar nome do arquivo selecionado
 document.getElementById("arquivo").addEventListener("change", function () {
   const name = this.files[0] ? this.files[0].name : "Nenhum arquivo selecionado"
@@ -90,11 +93,11 @@ async function addLivro() {
   }
 }
 
-async function carregarLivrosAdmin() {
+async function carregarLivrosAdmin(tentativa = 1) {
+  const div = document.getElementById("livros-admin")
   try {
     const res = await fetch(`${API}/livros`)
     const livros = await res.json()
-    const div = document.getElementById("livros-admin")
 
     if (!livros.length) {
       div.innerHTML = "<p>Nenhum livro cadastrado ainda.</p>"
@@ -110,7 +113,13 @@ async function carregarLivrosAdmin() {
       </div>
     `).join("")
   } catch (err) {
-    document.getElementById("livros-admin").innerHTML = "<p>Erro ao carregar livros.</p>"
+    if (tentativa < 4) {
+      const espera = tentativa * 3
+      div.innerHTML = `<p>Servidor acordando... tentativa ${tentativa}/3. Aguarde ${espera}s.</p>`
+      setTimeout(() => carregarLivrosAdmin(tentativa + 1), espera * 1000)
+    } else {
+      div.innerHTML = `<p>Erro ao carregar livros. <button onclick="carregarLivrosAdmin()">🔄 Tentar novamente</button></p>`
+    }
   }
 }
 
