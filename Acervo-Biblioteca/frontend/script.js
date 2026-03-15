@@ -5,7 +5,7 @@ let livros=[]
 
 async function carregar(){
 
-let res=await fetch("SEU_BACKEND_URL/livros")
+let res=await fetch("https://edischinho-github-io.onrender.com/livros")
 
 livros=await res.json()
 
@@ -23,7 +23,7 @@ let div=document.createElement("div")
 div.className="livro"
 
 div.innerHTML=`
-<img src="SEU_BACKEND_URL/${l.capa}">
+<img src="https://edischinho-github-io.onrender.com/${l.capa}">
 <p>${l.titulo}</p>
 `
 
