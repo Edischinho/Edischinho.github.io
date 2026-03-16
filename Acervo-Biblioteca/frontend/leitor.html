@@ -79,7 +79,7 @@
     <div class="ir-pagina">
       <input id="input-pagina" type="number" min="1" placeholder="Pág." title="Ir para página">
       <button class="ctrl-btn" onclick="irParaPagina()">Ir</button>
-      <span class="pagina-info" id="pagina-info"></span>
+      <span class="pagina-info" id="pagina-info">Pág. — / —</span>
     </div>
 
     <!-- Download -->
@@ -111,7 +111,7 @@
     pdfjsLib.getDocument(url).promise
       .then(pdf => {
         pdfDoc = pdf
-        document.getElementById("pagina-info").textContent = `/ ${pdf.numPages}`
+        document.getElementById("pagina-info").textContent = `Pág. 1 / ${pdf.numPages}`
         document.getElementById("input-pagina").max = pdf.numPages
 
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -123,10 +123,28 @@
           pageDiv.appendChild(placeholder)
           viewer.appendChild(pageDiv)
           observer.observe(pageDiv)
+          observerPaginaAtual.observe(pageDiv)
         }
       })
       .catch(err => mostrarErro("Erro ao carregar o PDF: " + err.message))
   }
+
+  // ── Observer: atualiza página atual conforme o usuário rola ──
+  const observerPaginaAtual = new IntersectionObserver(entries => {
+    // Pega a página mais visível (maior intersectionRatio)
+    let melhor = null
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        if (!melhor || entry.intersectionRatio > melhor.intersectionRatio) {
+          melhor = entry
+        }
+      }
+    })
+    if (melhor && pdfDoc) {
+      const num = parseInt(melhor.target.dataset.page)
+      document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
+    }
+  }, { threshold: [0.1, 0.5, 1.0] })
 
   // ── Lazy loading ──
   const observer = new IntersectionObserver(entries => {
