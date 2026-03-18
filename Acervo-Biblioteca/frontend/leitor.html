@@ -154,9 +154,8 @@
   }
 
   // Flag: suspende o contador durante navegação programática
-  let navegando    = false
-  let scrollTimer  = null
-  let scrollEndTimer = null
+  let navegando   = false
+  let scrollTimer = null
 
   window.addEventListener("scroll", () => {
     // Enquanto estiver navegando via "Ir", ignora scroll intermediário
@@ -196,6 +195,8 @@
   }
 
   // ── Ir para página ──
+  let animacaoScroll = null   // guarda o requestAnimationFrame ativo
+
   function irParaPagina() {
     if (!pdfDoc) return
 
@@ -209,32 +210,48 @@
     const alvo = viewer.querySelector(`.page[data-page="${num}"]`)
     if (!alvo) return
 
-    // Renderiza a página imediatamente se ainda for placeholder
+    // Renderiza imediatamente se for placeholder
     if (alvo.querySelector(".placeholder")) {
       renderPage(num, alvo)
       observer.unobserve(alvo)
     }
 
-    // Atualiza o contador imediatamente para o número certo
-    if (pdfDoc) {
-      document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
+    // Atualiza contador imediatamente — antes de qualquer movimento
+    document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
+
+    // Cancela qualquer animação anterior em andamento
+    if (animacaoScroll) cancelAnimationFrame(animacaoScroll)
+    navegando = true
+
+    // Scroll animado manual com rAF — sabemos exatamente quando termina
+    const inicio     = window.scrollY
+    const topoAlvo   = alvo.getBoundingClientRect().top + window.scrollY - 60  // 60px = altura da barra
+    const distancia  = topoAlvo - inicio
+    const duracao    = Math.min(400 + Math.abs(distancia) * 0.08, 900)  // proporcional à distância, máx 900ms
+    let   startTime  = null
+
+    function easeInOut(t) {
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
     }
 
-    // Suspende o observer de scroll durante a navegação
-    navegando = true
-    if (scrollEndTimer) clearTimeout(scrollEndTimer)
+    function passo(timestamp) {
+      if (!startTime) startTime = timestamp
+      const progresso = Math.min((timestamp - startTime) / duracao, 1)
+      window.scrollTo(0, inicio + distancia * easeInOut(progresso))
 
-    setTimeout(() => {
-      alvo.scrollIntoView({ behavior: "smooth", block: "start" })
-      alvo.classList.add("destaque")
-      setTimeout(() => alvo.classList.remove("destaque"), 1800)
+      if (progresso < 1) {
+        animacaoScroll = requestAnimationFrame(passo)
+      } else {
+        // Chegou — reativa o observer e confirma o contador
+        animacaoScroll = null
+        navegando      = false
+        document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
+        alvo.classList.add("destaque")
+        setTimeout(() => alvo.classList.remove("destaque"), 1800)
+      }
+    }
 
-      // Reativa o observer só depois que o scroll suave terminar (~600ms)
-      scrollEndTimer = setTimeout(() => {
-        navegando = false
-        atualizarPaginaAtual()
-      }, 700)
-    }, 80)
+    animacaoScroll = requestAnimationFrame(passo)
   }
 
   // Enter no campo de página também navega
