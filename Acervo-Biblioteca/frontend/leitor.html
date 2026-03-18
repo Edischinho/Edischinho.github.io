@@ -123,28 +123,45 @@
           pageDiv.appendChild(placeholder)
           viewer.appendChild(pageDiv)
           observer.observe(pageDiv)
-          observerPaginaAtual.observe(pageDiv)
         }
       })
       .catch(err => mostrarErro("Erro ao carregar o PDF: " + err.message))
   }
 
-  // ── Observer: atualiza página atual conforme o usuário rola ──
-  const observerPaginaAtual = new IntersectionObserver(entries => {
-    // Pega a página mais visível (maior intersectionRatio)
-    let melhor = null
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        if (!melhor || entry.intersectionRatio > melhor.intersectionRatio) {
-          melhor = entry
-        }
+  // ── Página atual: scroll + getBoundingClientRect (100% preciso) ──
+  // A página atual é a que ocupa mais pixels visíveis na viewport
+  function atualizarPaginaAtual() {
+    if (!pdfDoc) return
+    const pages      = viewer.querySelectorAll(".page")
+    const alturaVP   = window.innerHeight
+    let   maxVisivel = 0
+    let   paginaAtual = 1
+
+    pages.forEach(p => {
+      const rect    = p.getBoundingClientRect()
+      const topo    = Math.max(rect.top,    0)
+      const base    = Math.min(rect.bottom, alturaVP)
+      const visivel = Math.max(base - topo, 0)
+
+      if (visivel > maxVisivel) {
+        maxVisivel  = visivel
+        paginaAtual = parseInt(p.dataset.page)
       }
     })
-    if (melhor && pdfDoc) {
-      const num = parseInt(melhor.target.dataset.page)
-      document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
-    }
-  }, { threshold: [0.1, 0.5, 1.0] })
+
+    document.getElementById("pagina-info").textContent =
+      `Pág. ${paginaAtual} / ${pdfDoc.numPages}`
+  }
+
+  // Throttle: roda no máximo a cada 80ms durante o scroll
+  let scrollTimer = null
+  window.addEventListener("scroll", () => {
+    if (scrollTimer) return
+    scrollTimer = setTimeout(() => {
+      atualizarPaginaAtual()
+      scrollTimer = null
+    }, 80)
+  }, { passive: true })
 
   // ── Lazy loading ──
   const observer = new IntersectionObserver(entries => {
@@ -195,6 +212,9 @@
     // Pequeno delay para garantir que o canvas foi inserido antes do scroll
     setTimeout(() => {
       alvo.scrollIntoView({ behavior: "smooth", block: "start" })
+
+      // Atualiza contador imediatamente após navegar
+      atualizarPaginaAtual()
 
       // Destaque visual temporário
       alvo.classList.add("destaque")
