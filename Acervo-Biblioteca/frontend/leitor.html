@@ -195,7 +195,7 @@
   }
 
   // ── Ir para página ──
-  let animacaoScroll = null   // guarda o requestAnimationFrame ativo
+  let animacaoScroll = null
 
   function irParaPagina() {
     if (!pdfDoc) return
@@ -210,48 +210,87 @@
     const alvo = viewer.querySelector(`.page[data-page="${num}"]`)
     if (!alvo) return
 
-    // Renderiza imediatamente se for placeholder
-    if (alvo.querySelector(".placeholder")) {
-      renderPage(num, alvo)
-      observer.unobserve(alvo)
-    }
-
-    // Atualiza contador imediatamente — antes de qualquer movimento
-    document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
-
-    // Cancela qualquer animação anterior em andamento
-    if (animacaoScroll) cancelAnimationFrame(animacaoScroll)
+    // Cancela animação anterior
+    if (animacaoScroll) { cancelAnimationFrame(animacaoScroll); animacaoScroll = null }
     navegando = true
 
-    // Scroll animado manual com rAF — sabemos exatamente quando termina
-    const inicio     = window.scrollY
-    const topoAlvo   = alvo.getBoundingClientRect().top + window.scrollY - 60  // 60px = altura da barra
-    const distancia  = topoAlvo - inicio
-    const duracao    = Math.min(400 + Math.abs(distancia) * 0.08, 900)  // proporcional à distância, máx 900ms
-    let   startTime  = null
+    // Atualiza contador imediatamente
+    document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
 
-    function easeInOut(t) {
-      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
-    }
-
-    function passo(timestamp) {
-      if (!startTime) startTime = timestamp
-      const progresso = Math.min((timestamp - startTime) / duracao, 1)
-      window.scrollTo(0, inicio + distancia * easeInOut(progresso))
-
-      if (progresso < 1) {
-        animacaoScroll = requestAnimationFrame(passo)
-      } else {
-        // Chegou — reativa o observer e confirma o contador
-        animacaoScroll = null
-        navegando      = false
-        document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
-        alvo.classList.add("destaque")
-        setTimeout(() => alvo.classList.remove("destaque"), 1800)
+    // Renderiza a página alvo e as 2 vizinhas para garantir alturas reais
+    for (let v = Math.max(1, num - 2); v <= Math.min(pdfDoc.numPages, num + 2); v++) {
+      const vizinho = viewer.querySelector(`.page[data-page="${v}"]`)
+      if (vizinho && vizinho.querySelector(".placeholder")) {
+        renderPage(v, vizinho)
+        observer.unobserve(vizinho)
       }
     }
 
-    animacaoScroll = requestAnimationFrame(passo)
+    // Aguarda 1 frame para o DOM refletir as alturas reais dos canvas renderizados
+    requestAnimationFrame(() => {
+      const paginaAtual = parseInt(
+        (() => {
+          // descobre página atual pelo scroll antes de mover
+          const pages = viewer.querySelectorAll(".page")
+          const vp    = window.innerHeight
+          let max = 0, cur = 1
+          pages.forEach(p => {
+            const r  = p.getBoundingClientRect()
+            const vis = Math.max(Math.min(r.bottom, vp) - Math.max(r.top, 0), 0)
+            if (vis > max) { max = vis; cur = parseInt(p.dataset.page) }
+          })
+          return cur
+        })()
+      )
+
+      const distPaginas = Math.abs(num - paginaAtual)
+
+      if (distPaginas <= 15) {
+        // ── Curta distância: scroll animado com rAF ──
+        const inicio   = window.scrollY
+        const topoAlvo = alvo.getBoundingClientRect().top + window.scrollY - 60
+        const distancia = topoAlvo - inicio
+        const duracao   = Math.min(300 + distPaginas * 18, 600)
+        let   startTime = null
+
+        function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t }
+
+        function passo(timestamp) {
+          if (!startTime) startTime = timestamp
+          const prog = Math.min((timestamp - startTime) / duracao, 1)
+          window.scrollTo(0, inicio + distancia * easeInOut(prog))
+          if (prog < 1) {
+            animacaoScroll = requestAnimationFrame(passo)
+          } else {
+            animacaoScroll = null
+            navegando = false
+            document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
+            destacar(alvo)
+          }
+        }
+        animacaoScroll = requestAnimationFrame(passo)
+
+      } else {
+        // ── Longa distância: pulo instantâneo ──
+        // Posiciona direto sem animação — evita o problema de alturas variáveis
+        const topoAlvo = alvo.getBoundingClientRect().top + window.scrollY - 60
+        window.scrollTo(0, topoAlvo)
+
+        // Confirma posição no próximo frame (DOM já estabilizado)
+        requestAnimationFrame(() => {
+          const topoFinal = alvo.getBoundingClientRect().top + window.scrollY - 60
+          window.scrollTo(0, topoFinal)
+          navegando = false
+          document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
+          destacar(alvo)
+        })
+      }
+    })
+  }
+
+  function destacar(el) {
+    el.classList.add("destaque")
+    setTimeout(() => el.classList.remove("destaque"), 1800)
   }
 
   // Enter no campo de página também navega
