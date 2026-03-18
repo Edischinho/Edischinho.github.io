@@ -195,8 +195,6 @@
   }
 
   // ── Ir para página ──
-  let animacaoScroll = null
-
   function irParaPagina() {
     if (!pdfDoc) return
 
@@ -210,14 +208,12 @@
     const alvo = viewer.querySelector(`.page[data-page="${num}"]`)
     if (!alvo) return
 
-    // Cancela animação anterior
-    if (animacaoScroll) { cancelAnimationFrame(animacaoScroll); animacaoScroll = null }
     navegando = true
 
     // Atualiza contador imediatamente
     document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
 
-    // Renderiza a página alvo e as 2 vizinhas para garantir alturas reais
+    // Renderiza a página alvo e vizinhas para garantir alturas reais
     for (let v = Math.max(1, num - 2); v <= Math.min(pdfDoc.numPages, num + 2); v++) {
       const vizinho = viewer.querySelector(`.page[data-page="${v}"]`)
       if (vizinho && vizinho.querySelector(".placeholder")) {
@@ -226,66 +222,31 @@
       }
     }
 
-    // Aguarda 1 frame para o DOM refletir as alturas reais dos canvas renderizados
-    requestAnimationFrame(() => {
-      const paginaAtual = parseInt(
-        (() => {
-          // descobre página atual pelo scroll antes de mover
-          const pages = viewer.querySelectorAll(".page")
-          const vp    = window.innerHeight
-          let max = 0, cur = 1
-          pages.forEach(p => {
-            const r  = p.getBoundingClientRect()
-            const vis = Math.max(Math.min(r.bottom, vp) - Math.max(r.top, 0), 0)
-            if (vis > max) { max = vis; cur = parseInt(p.dataset.page) }
-          })
-          return cur
-        })()
-      )
+    // Efeito visual: fade out → pulo instantâneo → fade in
+    viewer.style.transition = "opacity 0.15s ease"
+    viewer.style.opacity    = "0"
 
-      const distPaginas = Math.abs(num - paginaAtual)
+    setTimeout(() => {
+      // Pulo preciso com DOM já estabilizado
+      const topoAlvo = alvo.getBoundingClientRect().top + window.scrollY - 60
+      window.scrollTo(0, topoAlvo)
 
-      if (distPaginas <= 15) {
-        // ── Curta distância: scroll animado com rAF ──
-        const inicio   = window.scrollY
-        const topoAlvo = alvo.getBoundingClientRect().top + window.scrollY - 60
-        const distancia = topoAlvo - inicio
-        const duracao   = Math.min(300 + distPaginas * 18, 600)
-        let   startTime = null
+      // Segundo frame: corrige qualquer drift residual
+      requestAnimationFrame(() => {
+        const topoFinal = alvo.getBoundingClientRect().top + window.scrollY - 60
+        window.scrollTo(0, topoFinal)
 
-        function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t }
+        // Fade in
+        viewer.style.opacity = "1"
 
-        function passo(timestamp) {
-          if (!startTime) startTime = timestamp
-          const prog = Math.min((timestamp - startTime) / duracao, 1)
-          window.scrollTo(0, inicio + distancia * easeInOut(prog))
-          if (prog < 1) {
-            animacaoScroll = requestAnimationFrame(passo)
-          } else {
-            animacaoScroll = null
-            navegando = false
-            document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
-            destacar(alvo)
-          }
-        }
-        animacaoScroll = requestAnimationFrame(passo)
-
-      } else {
-        // ── Longa distância: pulo instantâneo ──
-        // Posiciona direto sem animação — evita o problema de alturas variáveis
-        const topoAlvo = alvo.getBoundingClientRect().top + window.scrollY - 60
-        window.scrollTo(0, topoAlvo)
-
-        // Confirma posição no próximo frame (DOM já estabilizado)
-        requestAnimationFrame(() => {
-          const topoFinal = alvo.getBoundingClientRect().top + window.scrollY - 60
-          window.scrollTo(0, topoFinal)
+        setTimeout(() => {
+          viewer.style.transition = ""
           navegando = false
           document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
           destacar(alvo)
-        })
-      }
-    })
+        }, 150)
+      })
+    }, 150)
   }
 
   function destacar(el) {
