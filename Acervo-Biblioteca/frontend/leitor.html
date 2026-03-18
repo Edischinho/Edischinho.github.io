@@ -153,9 +153,15 @@
       `Pág. ${paginaAtual} / ${pdfDoc.numPages}`
   }
 
-  // Throttle: roda no máximo a cada 80ms durante o scroll
-  let scrollTimer = null
+  // Flag: suspende o contador durante navegação programática
+  let navegando    = false
+  let scrollTimer  = null
+  let scrollEndTimer = null
+
   window.addEventListener("scroll", () => {
+    // Enquanto estiver navegando via "Ir", ignora scroll intermediário
+    if (navegando) return
+
     if (scrollTimer) return
     scrollTimer = setTimeout(() => {
       atualizarPaginaAtual()
@@ -209,16 +215,25 @@
       observer.unobserve(alvo)
     }
 
-    // Pequeno delay para garantir que o canvas foi inserido antes do scroll
+    // Atualiza o contador imediatamente para o número certo
+    if (pdfDoc) {
+      document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
+    }
+
+    // Suspende o observer de scroll durante a navegação
+    navegando = true
+    if (scrollEndTimer) clearTimeout(scrollEndTimer)
+
     setTimeout(() => {
       alvo.scrollIntoView({ behavior: "smooth", block: "start" })
-
-      // Atualiza contador imediatamente após navegar
-      atualizarPaginaAtual()
-
-      // Destaque visual temporário
       alvo.classList.add("destaque")
       setTimeout(() => alvo.classList.remove("destaque"), 1800)
+
+      // Reativa o observer só depois que o scroll suave terminar (~600ms)
+      scrollEndTimer = setTimeout(() => {
+        navegando = false
+        atualizarPaginaAtual()
+      }, 700)
     }, 80)
   }
 
