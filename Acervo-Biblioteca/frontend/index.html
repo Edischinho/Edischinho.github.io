@@ -8,7 +8,10 @@
 </head>
 <body>
 
-<header>Stronghold Library</header>
+<header style="display:flex;align-items:center;justify-content:space-between;padding:15px 20px;">
+  <span>Stronghold Library</span>
+  <div id="btn-conta-wrap"></div>
+</header>
 
 <div class="container" style="text-align:center; padding-top: 60px;">
   <h1>Bem-vindo</h1>
@@ -19,6 +22,44 @@
 </div>
 
 <footer>Criado por Hiru Tagamashi</footer>
+
+<script>
+(function() {
+  const wrap    = document.getElementById("btn-conta-wrap")
+  const role    = sessionStorage.getItem("sl_role")
+  const username = sessionStorage.getItem("sl_username")
+  const logado  = !!role
+
+  if (logado) {
+    wrap.innerHTML = `
+      <div style="position:relative;display:inline-block">
+        <button id="conta-btn" style="background:#333;color:#eee;border:none;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;">
+          👤 ${username || "Conta"} ▾
+        </button>
+        <div id="conta-menu" style="display:none;position:absolute;right:0;top:110%;background:#222;border:1px solid #333;border-radius:8px;min-width:150px;box-shadow:0 4px 16px rgba(0,0,0,0.5);z-index:100;">
+          <div style="padding:10px 14px;font-size:12px;color:#888;border-bottom:1px solid #333;">${username}</div>
+          <button onclick="sair()" style="width:100%;text-align:left;background:none;border:none;color:#f88;padding:10px 14px;font-size:13px;cursor:pointer;">🚪 Sair</button>
+        </div>
+      </div>`
+    document.getElementById("conta-btn").addEventListener("click", (e) => {
+      e.stopPropagation()
+      const m = document.getElementById("conta-menu")
+      m.style.display = m.style.display === "none" ? "block" : "none"
+    })
+    document.addEventListener("click", () => {
+      const m = document.getElementById("conta-menu")
+      if (m) m.style.display = "none"
+    })
+  } else {
+    wrap.innerHTML = `<button onclick="location.href='login.html'" style="background:#fff;color:#111;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:bold;cursor:pointer;">Entrar</button>`
+  }
+
+  function sair() {
+    sessionStorage.clear()
+    location.reload()
+  }
+})()
+</script>
 
 </body>
 </html>
