@@ -79,7 +79,8 @@ app.post("/loginUsuario", async (req, res) => {
     if (error) throw error
 
     const username = data.user.user_metadata?.username || email.split("@")[0]
-    res.json({ status: "ok", role: "user", username })
+    const user_id   = data.user.id
+    res.json({ status: "ok", role: "user", username, user_id })
   } catch (err) {
     const msg = err.message.includes("Invalid login")
       ? "E-mail ou senha incorretos."
@@ -170,6 +171,59 @@ app.delete("/livros/:id", async (req, res) => {
     const { error: deleteError } = await supabase.from("livros").delete().eq("id", id)
     if (deleteError) throw deleteError
 
+    res.json({ status: "ok" })
+  } catch (err) {
+    res.status(500).json({ status: "erro", message: err.message })
+  }
+})
+
+// ── Buscar anotações do usuário para um livro ──
+app.get("/anotacoes", async (req, res) => {
+  const { user_id, livro_url } = req.query
+  if (!user_id || !livro_url)
+    return res.status(400).json({ status: "erro", message: "Parâmetros faltando" })
+
+  try {
+    const { data, error } = await supabase
+      .from("anotacoes")
+      .select("pagina, texto")
+      .eq("user_id", user_id)
+      .eq("livro_url", livro_url)
+
+    if (error) throw error
+    // Retorna como objeto { pagina: texto } para acesso O(1) no frontend
+    const mapa = {}
+    data.forEach(a => { mapa[a.pagina] = a.texto })
+    res.json(mapa)
+  } catch (err) {
+    res.status(500).json({ status: "erro", message: err.message })
+  }
+})
+
+// ── Salvar/atualizar anotação (upsert) ──
+app.post("/anotacoes", async (req, res) => {
+  const { user_id, livro_url, pagina, texto } = req.body
+  if (!user_id || !livro_url || !pagina)
+    return res.status(400).json({ status: "erro", message: "Parâmetros faltando" })
+
+  try {
+    if (!texto || !texto.trim()) {
+      // Texto vazio = deletar a anotação
+      const { error } = await supabase
+        .from("anotacoes")
+        .delete()
+        .eq("user_id", user_id)
+        .eq("livro_url", livro_url)
+        .eq("pagina", pagina)
+      if (error) throw error
+    } else {
+      // Upsert: cria ou atualiza
+      const { error } = await supabase
+        .from("anotacoes")
+        .upsert({ user_id, livro_url, pagina, texto: texto.trim() },
+                 { onConflict: "user_id,livro_url,pagina" })
+      if (error) throw error
+    }
     res.json({ status: "ok" })
   } catch (err) {
     res.status(500).json({ status: "erro", message: err.message })
