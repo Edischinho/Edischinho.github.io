@@ -3,577 +3,269 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Leitor — Stronghold Library</title>
+  <title>Login — Stronghold Library</title>
+  <link rel="stylesheet" href="style.css">
   <style>
-    body { margin: 0; background: #111; font-family: Arial, sans-serif; color: white; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #111;
+    }
 
-    /* ── Barra superior ── */
-    .topo {
-      position: sticky; top: 0; background: #000;
-      padding: 10px 16px; display: flex; align-items: center;
-      gap: 10px; z-index: 20; box-shadow: 0 2px 8px rgba(0,0,0,0.6);
-      flex-wrap: wrap;
+    .card {
+      background: #1a1a1a;
+      border-radius: 14px;
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
-    .topo a { color: #aaa; text-decoration: none; font-size: 14px; white-space: nowrap; }
-    .topo a:hover { color: white; }
-    .topo-titulo {
-      flex: 1; text-align: center; font-size: 14px;
-      color: #ccc; white-space: nowrap; overflow: hidden;
-      text-overflow: ellipsis; min-width: 0;
-    }
-    .controles { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .ctrl-btn {
-      background: #222; color: white; border: none;
-      border-radius: 6px; padding: 6px 12px; font-size: 13px;
-      cursor: pointer; transition: background 0.15s; white-space: nowrap;
-    }
-    .ctrl-btn:hover { background: #444; }
-    .ctrl-btn.ativo { background: #ffd700; color: #111; }
 
-    .ir-pagina { display: flex; align-items: center; gap: 5px; }
-    .ir-pagina input {
-      width: 52px; padding: 5px 7px; font-size: 13px;
-      border-radius: 6px; border: 1px solid #444;
-      background: #222; color: white; text-align: center;
+    .card h1 {
+      text-align: center;
+      font-size: 20px;
+      color: #eee;
+      margin: 0 0 24px;
+      letter-spacing: 0.5px;
     }
-    .ir-pagina input:focus { outline: 2px solid #888; }
-    .pagina-info { font-size: 12px; color: #888; white-space: nowrap; }
 
-    /* ── Viewer ── */
-    #viewer { max-width: 900px; margin: auto; padding: 10px; }
-    .page { margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; scroll-margin-top: 70px; }
-    canvas { width: 100%; background: white; border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.6); }
-    .placeholder { width: 100%; height: 900px; background: #222; border-radius: 5px; }
-    #erro { text-align: center; padding: 40px; color: #f66; }
-    .page.destaque canvas { box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,0.4); }
+    /* ── Abas ── */
+    .abas {
+      display: flex;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 24px;
+      border: 1px solid #333;
+    }
+    .aba {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+      cursor: pointer;
+      background: #222;
+      color: #888;
+      border: none;
+      transition: background 0.2s, color 0.2s;
+    }
+    .aba.ativa {
+      background: #fff;
+      color: #111;
+      font-weight: bold;
+    }
 
-    /* ── Indicador de anotação na página ── */
-    .nota-badge {
-      align-self: flex-end;
-      margin-top: 4px; margin-right: 4px;
-      background: #ffd700; color: #111;
-      border-radius: 12px; padding: 2px 9px;
-      font-size: 11px; font-weight: bold;
-      cursor: pointer; user-select: none;
-      transition: transform 0.1s;
+    /* ── Campos ── */
+    .campo {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
     }
-    .nota-badge:hover { transform: scale(1.08); }
+    .campo.ativo { display: flex; }
 
-    /* ── Drawer de anotações ── */
-    #drawer {
-      position: fixed; top: 0; right: -420px;
-      width: 400px; max-width: 95vw; height: 100vh;
-      background: #1a1a1a; z-index: 30;
-      box-shadow: -4px 0 24px rgba(0,0,0,0.7);
-      transition: right 0.3s ease;
-      display: flex; flex-direction: column;
+    .campo input {
+      width: 100%;
+      padding: 11px 14px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #2a2a2a;
+      color: #eee;
+      font-size: 15px;
+      box-sizing: border-box;
     }
-    #drawer.aberto { right: 0; }
+    .campo input:focus {
+      outline: none;
+      border-color: #666;
+    }
+    .campo input::placeholder { color: #666; }
 
-    .drawer-header {
-      padding: 16px 18px; background: #111;
-      display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid #2a2a2a; flex-shrink: 0;
+    .campo button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background: #fff;
+      color: #111;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 4px;
     }
-    .drawer-header h3 { margin: 0; font-size: 15px; color: #eee; }
-    .drawer-fechar {
-      background: none; border: none; color: #888;
-      font-size: 20px; cursor: pointer; padding: 0 4px; line-height: 1;
-    }
-    .drawer-fechar:hover { color: white; }
+    .campo button:hover    { background: #ddd; }
+    .campo button:disabled { background: #555; color: #999; cursor: not-allowed; }
 
-    /* ── Área de edição da anotação atual ── */
-    .nota-atual {
-      padding: 16px 18px; border-bottom: 1px solid #2a2a2a; flex-shrink: 0;
+    /* ── Mensagens ── */
+    .msg {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+      margin-top: 4px;
     }
-    .nota-atual label {
-      font-size: 12px; color: #888; display: block; margin-bottom: 6px;
-    }
-    .nota-atual textarea {
-      width: 100%; box-sizing: border-box;
-      background: #2a2a2a; color: #eee; border: 1px solid #333;
-      border-radius: 8px; padding: 10px; font-size: 14px;
-      resize: vertical; min-height: 100px; font-family: Arial, sans-serif;
-    }
-    .nota-atual textarea:focus { outline: none; border-color: #ffd700; }
-    .nota-atual-btns {
-      display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end;
-    }
-    .btn-salvar {
-      background: #ffd700; color: #111; border: none;
-      border-radius: 6px; padding: 7px 16px; font-size: 13px;
-      font-weight: bold; cursor: pointer; transition: background 0.15s;
-    }
-    .btn-salvar:hover { background: #ffe44d; }
-    .btn-salvar:disabled { background: #555; color: #999; cursor: not-allowed; }
-    .btn-apagar {
-      background: #3a1a1a; color: #f88; border: 1px solid #622;
-      border-radius: 6px; padding: 7px 12px; font-size: 13px;
-      cursor: pointer; transition: background 0.15s;
-    }
-    .btn-apagar:hover { background: #4a2020; }
-    .salvo-msg { font-size: 12px; color: #8f8; align-self: center; opacity: 0; transition: opacity 0.3s; }
-    .salvo-msg.visivel { opacity: 1; }
+    .msg.erro { background: #3a1a1a; color: #f88; border: 1px solid #622; }
+    .msg.ok   { background: #1a3a1a; color: #8f8; border: 1px solid #262; }
 
-    /* ── Lista de todas as anotações ── */
-    .notas-lista { flex: 1; overflow-y: auto; padding: 14px 18px; }
-    .notas-lista h4 { font-size: 12px; color: #666; margin: 0 0 12px; text-transform: uppercase; }
-    .nota-item {
-      background: #222; border-radius: 8px; padding: 10px 12px;
-      margin-bottom: 10px; cursor: pointer; transition: background 0.15s;
-      border-left: 3px solid #ffd700;
+    .voltar {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      color: #666;
+      font-size: 13px;
+      text-decoration: none;
     }
-    .nota-item:hover { background: #2a2a2a; }
-    .nota-item-pag { font-size: 11px; color: #ffd700; font-weight: bold; margin-bottom: 4px; }
-    .nota-item-texto { font-size: 13px; color: #ccc; white-space: pre-wrap; word-break: break-word;
-      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-    .notas-vazia { color: #555; font-size: 13px; text-align: center; margin-top: 30px; }
-
-    /* ── Overlay escuro ao abrir drawer ── */
-    #overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.4); z-index: 25;
-    }
-    #overlay.visivel { display: block; }
-
-    /* ── Sem login ── */
-    .sem-login {
-      padding: 20px 18px; color: #888; font-size: 13px; text-align: center;
-    }
-    .sem-login a { color: #ffd700; }
-
-    @media (max-width: 600px) {
-      .topo-titulo { display: none; }
-      .ctrl-btn { padding: 6px 9px; font-size: 12px; }
-      #drawer { width: 100vw; max-width: 100vw; }
-    }
+    .voltar:hover { color: #aaa; }
   </style>
 </head>
 <body>
 
-<div class="topo">
-  <a href="javascript:history.back()">← Voltar</a>
-  <span class="topo-titulo"><a href="index.html" style="color:inherit;text-decoration:none;">Stronghold Library</a> — Leitor</span>
-  <div class="controles">
-    <div class="ir-pagina">
-      <input id="input-pagina" type="number" min="1" placeholder="Pág." title="Ir para página">
-      <button class="ctrl-btn" onclick="irParaPagina()">Ir</button>
-      <span class="pagina-info" id="pagina-info">Pág. — / —</span>
-    </div>
-    <button class="ctrl-btn" id="btn-notas" onclick="toggleDrawer()" title="Minhas anotações">📝 Notas</button>
-    <button class="ctrl-btn" onclick="baixarPDF()" title="Baixar PDF">⬇ Download</button>
-    <div id="btn-conta-wrap" style="position:relative"></div>
+<div class="card">
+  <h1><a href="index.html" style="color:inherit;text-decoration:none;">📚 Stronghold Library</a></h1>
+
+  <div class="abas">
+    <button class="aba ativa" onclick="trocarAba('login')">Entrar</button>
+    <button class="aba"       onclick="trocarAba('registro')">Criar conta</button>
+  </div>
+
+  <!-- ── Aba Login ── -->
+  <div id="campo-login" class="campo ativo">
+    <input id="login-email" type="email"    placeholder="E-mail" autocomplete="email">
+    <input id="login-senha" type="password" placeholder="Senha"  autocomplete="current-password">
+    <button id="btn-login" onclick="fazerLogin()">Entrar</button>
+    <div id="msg-login" class="msg"></div>
+  </div>
+
+  <!-- ── Aba Registro ── -->
+  <div id="campo-registro" class="campo">
+    <input id="reg-nome"  type="text"     placeholder="Nome de usuário">
+    <input id="reg-email" type="email"    placeholder="E-mail"          autocomplete="email">
+    <input id="reg-senha" type="password" placeholder="Senha (mín. 6 caracteres)" autocomplete="new-password">
+    <button id="btn-reg" onclick="fazerRegistro()">Criar conta</button>
+    <div id="msg-reg" class="msg"></div>
   </div>
 </div>
 
-<div id="viewer"></div>
-<div id="erro" style="display:none"></div>
+<a class="voltar" href="index.html">← Voltar para a biblioteca</a>
 
-<!-- ── Overlay ── -->
-<div id="overlay" onclick="fecharDrawer()"></div>
-
-<!-- ── Drawer de anotações ── -->
-<div id="drawer">
-  <div class="drawer-header">
-    <h3>📝 Anotações</h3>
-    <button class="drawer-fechar" onclick="fecharDrawer()">✕</button>
-  </div>
-
-  <!-- Conteúdo quando logado -->
-  <div id="drawer-logado" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
-    <div class="nota-atual">
-      <label id="nota-label">Anotação — Pág. ?</label>
-      <textarea id="nota-texto" placeholder="Escreva sua anotação para esta página..."></textarea>
-      <div class="nota-atual-btns">
-        <span class="salvo-msg" id="salvo-msg">✓ Salvo</span>
-        <button class="btn-apagar" onclick="apagarNota()">🗑 Apagar</button>
-        <button class="btn-salvar" id="btn-salvar" onclick="salvarNota()">Salvar</button>
-      </div>
-    </div>
-    <div class="notas-lista">
-      <h4>Todas as anotações</h4>
-      <div id="lista-notas"></div>
-    </div>
-  </div>
-
-  <!-- Conteúdo quando não logado -->
-  <div id="drawer-sem-login" class="sem-login" style="display:none;">
-    <p>Para fazer anotações, você precisa estar logado.</p>
-    <a href="login.html">Fazer login →</a>
-  </div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-  const API    = "https://edischinho-github-io.onrender.com"
-  const params = new URLSearchParams(window.location.search)
-  const pdfUrl = params.get("pdf")
-  const viewer = document.getElementById("viewer")
-  let pdfDoc   = null
+const API = "https://edischinho-github-io.onrender.com"
 
-  // ── Sessão do usuário (salva pelo login.html no sessionStorage) ──
-  const userId   = sessionStorage.getItem("sl_user_id")   || null
-  const username = sessionStorage.getItem("sl_username")  || null
-  const role     = sessionStorage.getItem("sl_role")      || null
-  const logado   = !!(userId || role === "admin")
+// Acorda o Render
+fetch(`${API}/`, { method: "GET", mode: "cors" }).catch(() => {})
 
-  // Anotações: { pagina: texto }
-  let anotacoes     = {}
-  let paginaNoDrawer = 1   // página sendo editada no drawer
-
-  if (!pdfUrl) {
-    mostrarErro("Nenhum arquivo especificado.")
-  } else {
-    carregarPDF(decodeURIComponent(pdfUrl))
-    if (logado) carregarAnotacoes()
-  }
-
-  // ── Carregar PDF ──
-  function carregarPDF(url) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
-
-    pdfjsLib.getDocument(url).promise
-      .then(pdf => {
-        pdfDoc = pdf
-        document.getElementById("pagina-info").textContent = `Pág. 1 / ${pdf.numPages}`
-        document.getElementById("input-pagina").max = pdf.numPages
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const pageDiv = document.createElement("div")
-          pageDiv.className  = "page"
-          pageDiv.dataset.page = i
-          const placeholder = document.createElement("div")
-          placeholder.className = "placeholder"
-          pageDiv.appendChild(placeholder)
-          viewer.appendChild(pageDiv)
-          observer.observe(pageDiv)
-        }
-      })
-      .catch(err => mostrarErro("Erro ao carregar o PDF: " + err.message))
-  }
-
-  // ── Página atual ──
-  function paginaVisivel() {
-    const pages   = viewer.querySelectorAll(".page")
-    const alturaVP = window.innerHeight
-    let max = 0, atual = 1
-    pages.forEach(p => {
-      const r = p.getBoundingClientRect()
-      const vis = Math.max(Math.min(r.bottom, alturaVP) - Math.max(r.top, 0), 0)
-      if (vis > max) { max = vis; atual = parseInt(p.dataset.page) }
-    })
-    return atual
-  }
-
-  function atualizarPaginaAtual() {
-    if (!pdfDoc) return
-    const num = paginaVisivel()
-    document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
-    // Sincroniza drawer se estiver aberto
-    if (document.getElementById("drawer").classList.contains("aberto")) {
-      abrirDrawerNaPagina(num)
-    }
-  }
-
-  let navegando = false, scrollTimer = null
-  window.addEventListener("scroll", () => {
-    if (navegando) return
-    if (scrollTimer) return
-    scrollTimer = setTimeout(() => { atualizarPaginaAtual(); scrollTimer = null }, 80)
-  }, { passive: true })
-
-  // ── Lazy loading ──
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const pageDiv   = entry.target
-        const pageIndex = [...viewer.children].indexOf(pageDiv) + 1
-        renderPage(pageIndex, pageDiv)
-        observer.unobserve(pageDiv)
-      }
-    })
-  }, { rootMargin: "300px" })
-
-  function renderPage(num, container) {
-    pdfDoc.getPage(num).then(page => {
-      const scale    = window.innerWidth < 600 ? 1.0 : 1.5
-      const viewport = page.getViewport({ scale })
-      const canvas   = document.createElement("canvas")
-      const ctx      = canvas.getContext("2d")
-      canvas.height  = viewport.height
-      canvas.width   = viewport.width
-      container.innerHTML = ""
-      container.appendChild(canvas)
-      page.render({ canvasContext: ctx, viewport })
-      // Adiciona badge se tiver anotação
-      if (logado) atualizarBadge(num, container)
-    })
-  }
-
-  // ── Ir para página ──
-  let animacaoScroll = null
-  function irParaPagina() {
-    if (!pdfDoc) return
-    const input = document.getElementById("input-pagina")
-    let num = parseInt(input.value)
-    if (isNaN(num) || num < 1) num = 1
-    if (num > pdfDoc.numPages)  num = pdfDoc.numPages
-    input.value = num
-
-    const alvo = viewer.querySelector(`.page[data-page="${num}"]`)
-    if (!alvo) return
-
-    navegando = true
-    document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
-
-    for (let v = Math.max(1, num - 2); v <= Math.min(pdfDoc.numPages, num + 2); v++) {
-      const viz = viewer.querySelector(`.page[data-page="${v}"]`)
-      if (viz && viz.querySelector(".placeholder")) { renderPage(v, viz); observer.unobserve(viz) }
-    }
-
-    viewer.style.transition = "opacity 0.15s ease"
-    viewer.style.opacity    = "0"
-
-    setTimeout(() => {
-      const topoAlvo = alvo.getBoundingClientRect().top + window.scrollY - 60
-      window.scrollTo(0, topoAlvo)
-      requestAnimationFrame(() => {
-        const topoFinal = alvo.getBoundingClientRect().top + window.scrollY - 60
-        window.scrollTo(0, topoFinal)
-        viewer.style.opacity = "1"
-        setTimeout(() => {
-          viewer.style.transition = ""
-          navegando = false
-          document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
-          destacar(alvo)
-          if (document.getElementById("drawer").classList.contains("aberto")) abrirDrawerNaPagina(num)
-        }, 150)
-      })
-    }, 150)
-  }
-
-  function destacar(el) {
-    el.classList.add("destaque")
-    setTimeout(() => el.classList.remove("destaque"), 1800)
-  }
-
-  document.getElementById("input-pagina").addEventListener("keydown", e => {
-    if (e.key === "Enter") irParaPagina()
+// ── Trocar aba ──
+function trocarAba(aba) {
+  document.getElementById("campo-login").classList.toggle("ativo",    aba === "login")
+  document.getElementById("campo-registro").classList.toggle("ativo", aba === "registro")
+  document.querySelectorAll(".aba").forEach((b, i) => {
+    b.classList.toggle("ativa", (i === 0 && aba === "login") || (i === 1 && aba === "registro"))
   })
+  // Limpa mensagens ao trocar
+  ;["msg-login","msg-reg"].forEach(id => {
+    const el = document.getElementById(id)
+    el.style.display = "none"; el.className = "msg"
+  })
+}
 
-  // ── Download ──
-  async function baixarPDF() {
-    const url = decodeURIComponent(pdfUrl)
+// ── Login ──
+async function fazerLogin() {
+  const email = document.getElementById("login-email").value.trim()
+  const senha = document.getElementById("login-senha").value
+  const btn   = document.getElementById("btn-login")
+
+  if (!email || !senha) { mostrarMsg("msg-login", "Preencha todos os campos.", "erro"); return }
+
+  // Verificar se é admin (por e-mail especial ou pelo campo user)
+  // Admin usa usuário "admin" + senha "1234" no campo de e-mail e senha
+  if (email === "admin" && senha === "1234") {
+    // Login admin via rota dedicada
+    btn.disabled = true; btn.textContent = "Entrando..."
     try {
-      const res  = await fetch(url)
-      const blob = await res.blob()
-      const a    = document.createElement("a")
-      a.href     = URL.createObjectURL(blob)
-      a.download = url.split("/").pop().replace(/^\d+-/, "") || "livro.pdf"
-      a.click()
-      URL.revokeObjectURL(a.href)
-    } catch { window.open(url, "_blank") }
-  }
-
-  // ─────────────────────────────────────────────
-  // ── ANOTAÇÕES ──
-  // ─────────────────────────────────────────────
-
-  async function carregarAnotacoes() {
-    if (!logado || !userId) return
-    try {
-      const res  = await fetch(`${API}/anotacoes?user_id=${encodeURIComponent(userId)}&livro_url=${encodeURIComponent(pdfUrl)}`)
-      const data = await res.json()
-      anotacoes = data
-      // Atualiza badges nas páginas já renderizadas
-      viewer.querySelectorAll(".page").forEach(p => {
-        const num = parseInt(p.dataset.page)
-        atualizarBadge(num, p)
-      })
-      renderizarListaNotas()
-    } catch (err) {
-      console.error("Erro ao carregar anotações:", err)
-    }
-  }
-
-  // Badge amarelo embaixo da página
-  function atualizarBadge(num, container) {
-    const existente = container.querySelector(".nota-badge")
-    if (existente) existente.remove()
-
-    if (anotacoes[num]) {
-      const badge = document.createElement("div")
-      badge.className   = "nota-badge"
-      badge.textContent = "📝 Anotação"
-      badge.onclick     = () => { abrirDrawerNaPagina(num); abrirDrawer() }
-      container.appendChild(badge)
-    }
-  }
-
-  // ── Drawer ──
-  function toggleDrawer() {
-    const drawer = document.getElementById("drawer")
-    if (drawer.classList.contains("aberto")) {
-      fecharDrawer()
-    } else {
-      abrirDrawer()
-    }
-  }
-
-  function abrirDrawer() {
-    const drawer  = document.getElementById("drawer")
-    const overlay = document.getElementById("overlay")
-    const btn     = document.getElementById("btn-notas")
-
-    drawer.classList.add("aberto")
-    overlay.classList.add("visivel")
-    btn.classList.add("ativo")
-
-    if (logado && userId) {
-      document.getElementById("drawer-logado").style.display    = "flex"
-      document.getElementById("drawer-sem-login").style.display = "none"
-      abrirDrawerNaPagina(paginaVisivel())
-    } else {
-      document.getElementById("drawer-logado").style.display    = "none"
-      document.getElementById("drawer-sem-login").style.display = "block"
-    }
-  }
-
-  function fecharDrawer() {
-    document.getElementById("drawer").classList.remove("aberto")
-    document.getElementById("overlay").classList.remove("visivel")
-    document.getElementById("btn-notas").classList.remove("ativo")
-  }
-
-  // Sincroniza o textarea com a página indicada
-  function abrirDrawerNaPagina(num) {
-    paginaNoDrawer = num
-    document.getElementById("nota-label").textContent  = `Anotação — Pág. ${num}`
-    document.getElementById("nota-texto").value        = anotacoes[num] || ""
-    document.getElementById("salvo-msg").classList.remove("visivel")
-  }
-
-  // ── Salvar ──
-  async function salvarNota() {
-    if (!logado || !userId) return
-    const texto = document.getElementById("nota-texto").value
-    const btn   = document.getElementById("btn-salvar")
-    btn.disabled = true; btn.textContent = "Salvando..."
-
-    try {
-      const res  = await fetch(`${API}/anotacoes`, {
+      const res  = await fetch(`${API}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, livro_url: pdfUrl, pagina: paginaNoDrawer, texto })
+        body: JSON.stringify({ user: "admin", password: "1234" })
       })
       const data = await res.json()
       if (data.status === "ok") {
-        if (texto.trim()) {
-          anotacoes[paginaNoDrawer] = texto.trim()
-        } else {
-          delete anotacoes[paginaNoDrawer]
-        }
-        // Atualiza badge da página
-        const pageDiv = viewer.querySelector(`.page[data-page="${paginaNoDrawer}"]`)
-        if (pageDiv) atualizarBadge(paginaNoDrawer, pageDiv)
-        renderizarListaNotas()
-        // Mostrar confirmação
-        const msg = document.getElementById("salvo-msg")
-        msg.classList.add("visivel")
-        setTimeout(() => msg.classList.remove("visivel"), 2000)
+        sessionStorage.setItem("sl_role", "admin")
+        location.href = "admin.html"
+      } else {
+        mostrarMsg("msg-login", data.message, "erro")
       }
-    } catch (err) {
-      console.error("Erro ao salvar:", err)
-    } finally {
-      btn.disabled = false; btn.textContent = "Salvar"
-    }
+    } catch { mostrarMsg("msg-login", "Erro de conexão.", "erro") }
+    finally { btn.disabled = false; btn.textContent = "Entrar" }
+    return
   }
 
-  // ── Apagar ──
-  async function apagarNota() {
-    document.getElementById("nota-texto").value = ""
-    await salvarNota()
-  }
-
-  // ── Lista lateral ──
-  function renderizarListaNotas() {
-    const lista  = document.getElementById("lista-notas")
-    const paginas = Object.keys(anotacoes).map(Number).sort((a, b) => a - b)
-
-    if (!paginas.length) {
-      lista.innerHTML = '<p class="notas-vazia">Nenhuma anotação ainda.</p>'
-      return
-    }
-
-    lista.innerHTML = paginas.map(p => `
-      <div class="nota-item" onclick="irParaNota(${p})">
-        <div class="nota-item-pag">Página ${p}</div>
-        <div class="nota-item-texto">${escapeHtml(anotacoes[p])}</div>
-      </div>
-    `).join("")
-  }
-
-  function irParaNota(num) {
-    abrirDrawerNaPagina(num)
-    // Navega para a página sem fechar o drawer
-    document.getElementById("input-pagina").value = num
-    irParaPagina()
-  }
-
-  function escapeHtml(t) {
-    return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-  }
-
-  // Salvar com Ctrl+Enter no textarea
-  document.getElementById("nota-texto").addEventListener("keydown", e => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) salvarNota()
-  })
-
-  // ── Erro ──
-  function mostrarErro(msg) {
-    viewer.style.display = "none"
-    const el = document.getElementById("erro")
-    el.textContent = msg; el.style.display = "block"
-  }
-</script>
-
-<script>
-(function() {
-  const wrap     = document.getElementById("btn-conta-wrap")
-  const role     = sessionStorage.getItem("sl_role")
-  const username = sessionStorage.getItem("sl_username")
-  const logado   = !!role
-
-  const btnStyle = "background:#222;color:#eee;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap;"
-
-  if (logado) {
-    wrap.innerHTML = `
-      <button id="conta-btn" style="${btnStyle}display:flex;align-items:center;gap:6px;">
-        👤 ${username || "Conta"} ▾
-      </button>
-      <div id="conta-menu" style="display:none;position:absolute;right:0;top:110%;background:#222;border:1px solid #444;border-radius:8px;min-width:150px;box-shadow:0 4px 16px rgba(0,0,0,0.6);z-index:100;">
-        <div style="padding:10px 14px;font-size:12px;color:#888;border-bottom:1px solid #333;">${username}</div>
-        <button onclick="sairConta()" style="width:100%;text-align:left;background:none;border:none;color:#f88;padding:10px 14px;font-size:13px;cursor:pointer;">🚪 Sair</button>
-      </div>`
-    document.getElementById("conta-btn").addEventListener("click", (e) => {
-      e.stopPropagation()
-      const m = document.getElementById("conta-menu")
-      m.style.display = m.style.display === "none" ? "block" : "none"
+  // Login usuário comum via Supabase Auth
+  btn.disabled = true; btn.textContent = "Entrando..."
+  try {
+    const res  = await fetch(`${API}/loginUsuario`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: senha })
     })
-    document.addEventListener("click", () => {
-      const m = document.getElementById("conta-menu")
-      if (m) m.style.display = "none"
-    })
-  } else {
-    wrap.innerHTML = `<button onclick="location.href='login.html'" style="${btnStyle}background:#fff;color:#111;font-weight:bold;">Entrar</button>`
-  }
+    const data = await res.json()
+    if (data.status === "ok") {
+      sessionStorage.setItem("sl_role",     "user")
+      sessionStorage.setItem("sl_username", data.username)
+      sessionStorage.setItem("sl_user_id",  data.user_id)
+      location.href = "livraria.html"
+    } else {
+      mostrarMsg("msg-login", data.message, "erro")
+    }
+  } catch { mostrarMsg("msg-login", "Erro de conexão.", "erro") }
+  finally { btn.disabled = false; btn.textContent = "Entrar" }
+}
 
-  function sairConta() {
-    sessionStorage.clear()
-    location.href = "index.html"
-  }
-})()
+// ── Registro ──
+async function fazerRegistro() {
+  const nome  = document.getElementById("reg-nome").value.trim()
+  const email = document.getElementById("reg-email").value.trim()
+  const senha = document.getElementById("reg-senha").value
+  const btn   = document.getElementById("btn-reg")
+
+  if (!nome || !email || !senha) { mostrarMsg("msg-reg", "Preencha todos os campos.", "erro"); return }
+
+  btn.disabled = true; btn.textContent = "Criando conta..."
+  try {
+    const res  = await fetch(`${API}/registro`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: senha, username: nome })
+    })
+    const data = await res.json()
+    if (data.status === "ok") {
+      mostrarMsg("msg-reg", "✅ Conta criada! Agora faça login.", "ok")
+      // Preenche o e-mail na aba de login e troca de aba após 1.5s
+      setTimeout(() => {
+        document.getElementById("login-email").value = email
+        trocarAba("login")
+      }, 1500)
+    } else {
+      mostrarMsg("msg-reg", data.message, "erro")
+    }
+  } catch { mostrarMsg("msg-reg", "Erro de conexão.", "erro") }
+  finally { btn.disabled = false; btn.textContent = "Criar conta" }
+}
+
+// ── Helper ──
+function mostrarMsg(id, msg, tipo) {
+  const el = document.getElementById(id)
+  el.textContent  = msg
+  el.className    = `msg ${tipo}`
+  el.style.display = "block"
+}
+
+// Enter dispara o botão da aba ativa
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return
+  const loginAtivo = document.getElementById("campo-login").classList.contains("ativo")
+  loginAtivo ? fazerLogin() : fazerRegistro()
+})
 </script>
 
 </body>
