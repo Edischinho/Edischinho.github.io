@@ -142,6 +142,57 @@
     }
     .sem-login a { color: #ffd700; }
 
+    /* ── Exportar ── */
+    .btn-exportar-todas {
+      background: #2a2a2a; color: #ffd700; border: 1px solid #444;
+      border-radius: 6px; padding: 4px 10px; font-size: 11px;
+      cursor: pointer; white-space: nowrap; transition: background 0.15s;
+    }
+    .btn-exportar-todas:hover { background: #333; }
+
+    .nota-item-exportar {
+      background: none; border: none; color: #666;
+      font-size: 11px; cursor: pointer; padding: 2px 6px;
+      border-radius: 4px; transition: color 0.15s;
+      flex-shrink: 0;
+    }
+    .nota-item-exportar:hover { color: #ffd700; }
+
+    /* ── Modal de exportação ── */
+    #modal-exportar {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); z-index: 50;
+      align-items: center; justify-content: center;
+    }
+    #modal-exportar.aberto { display: flex; }
+    .modal-exp {
+      background: #1a1a1a; border-radius: 14px;
+      padding: 28px 24px; width: 90%; max-width: 480px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+    }
+    .modal-exp h3 { margin: 0 0 6px; font-size: 16px; color: #eee; }
+    .modal-exp p  { margin: 0 0 16px; font-size: 12px; color: #888; }
+    .modal-exp textarea {
+      width: 100%; box-sizing: border-box;
+      background: #111; color: #ccc; border: 1px solid #333;
+      border-radius: 8px; padding: 12px; font-size: 13px;
+      font-family: monospace; resize: vertical; min-height: 200px;
+    }
+    .modal-exp-btns {
+      display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;
+    }
+    .btn-fechar-exp {
+      background: #2a2a2a; color: #aaa; border: none;
+      border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer;
+    }
+    .btn-fechar-exp:hover { background: #333; }
+    .btn-dl-txt {
+      background: #ffd700; color: #111; border: none;
+      border-radius: 6px; padding: 8px 16px; font-size: 13px;
+      font-weight: bold; cursor: pointer;
+    }
+    .btn-dl-txt:hover { background: #ffe44d; }
+
     @media (max-width: 600px) {
       .topo-titulo { display: none; }
       .ctrl-btn { padding: 6px 9px; font-size: 12px; }
@@ -162,6 +213,7 @@
     </div>
     <button class="ctrl-btn" id="btn-notas" onclick="toggleDrawer()" title="Minhas anotações">📝 Notas</button>
     <button class="ctrl-btn" onclick="baixarPDF()" title="Baixar PDF">⬇ Download</button>
+    <div id="btn-conta-wrap" style="position:relative"></div>
   </div>
 </div>
 
@@ -190,7 +242,10 @@
       </div>
     </div>
     <div class="notas-lista">
-      <h4>Todas as anotações</h4>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h4 style="margin:0;">Todas as anotações</h4>
+        <button class="btn-exportar-todas" onclick="exportarTodas()" title="Exportar todas como .txt">⬇ Exportar todas</button>
+      </div>
       <div id="lista-notas"></div>
     </div>
   </div>
@@ -199,6 +254,19 @@
   <div id="drawer-sem-login" class="sem-login" style="display:none;">
     <p>Para fazer anotações, você precisa estar logado.</p>
     <a href="login.html">Fazer login →</a>
+  </div>
+</div>
+
+<!-- ── Modal de exportação ── -->
+<div id="modal-exportar" onclick="fecharModalExpOverlay(event)">
+  <div class="modal-exp">
+    <h3 id="modal-exp-titulo">Exportar anotação</h3>
+    <p id="modal-exp-sub"></p>
+    <textarea id="modal-exp-texto" readonly></textarea>
+    <div class="modal-exp-btns">
+      <button class="btn-fechar-exp" onclick="fecharModalExp()">Fechar</button>
+      <button class="btn-dl-txt" onclick="baixarTxt()">⬇ Baixar .txt</button>
+    </div>
   </div>
 </div>
 
@@ -506,9 +574,12 @@
     }
 
     lista.innerHTML = paginas.map(p => `
-      <div class="nota-item" onclick="irParaNota(${p})">
-        <div class="nota-item-pag">Página ${p}</div>
-        <div class="nota-item-texto">${escapeHtml(anotacoes[p])}</div>
+      <div class="nota-item" style="display:flex;align-items:flex-start;gap:6px;">
+        <div style="flex:1;cursor:pointer;" onclick="irParaNota(${p})">
+          <div class="nota-item-pag">Página ${p}</div>
+          <div class="nota-item-texto">${escapeHtml(anotacoes[p])}</div>
+        </div>
+        <button class="nota-item-exportar" onclick="exportarUma(${p})" title="Exportar esta anotação">⬇</button>
       </div>
     `).join("")
   }
@@ -519,6 +590,95 @@
     document.getElementById("input-pagina").value = num
     irParaPagina()
   }
+
+  // ─────────────────────────────────────────────
+  // ── EXPORTAÇÃO ──
+  // ─────────────────────────────────────────────
+
+  let expTextoAtual  = ""
+  let expNomeArquivo = "anotacao.txt"
+
+  // Nome limpo do livro para o arquivo
+  function nomeDoLivro() {
+    try {
+      const url  = decodeURIComponent(pdfUrl)
+      const base = url.split("/").pop().replace(/^\d+-/, "").replace(/\.pdf$/i, "")
+      return base.replace(/_/g, " ") || "livro"
+    } catch { return "livro" }
+  }
+
+  // Exportar anotação de uma página específica
+  function exportarUma(pagina) {
+    const texto = anotacoes[pagina]
+    if (!texto) return
+
+    const livro   = nomeDoLivro()
+    const conteudo = [
+      `Stronghold Library — Anotações`,
+      `Livro : ${livro}`,
+      `Página: ${pagina}`,
+      ``,
+      texto
+    ].join("\n")
+
+    expTextoAtual  = conteudo
+    expNomeArquivo = `${livro}_pag${pagina}.txt`
+
+    document.getElementById("modal-exp-titulo").textContent = `Exportar — Pág. ${pagina}`
+    document.getElementById("modal-exp-sub").textContent    = `Anotação da página ${pagina} de "${livro}"`
+    document.getElementById("modal-exp-texto").value        = conteudo
+    document.getElementById("modal-exportar").classList.add("aberto")
+  }
+
+  // Exportar todas as anotações de uma vez
+  function exportarTodas() {
+    const paginas = Object.keys(anotacoes).map(Number).sort((a, b) => a - b)
+    if (!paginas.length) { alert("Nenhuma anotação para exportar."); return }
+
+    const livro = nomeDoLivro()
+    const linhas = [
+      `Stronghold Library — Anotações`,
+      `Livro : ${livro}`,
+      `Total : ${paginas.length} anotação${paginas.length > 1 ? "ões" : ""}`,
+      ``,
+      `${"─".repeat(50)}`
+    ]
+
+    paginas.forEach(p => {
+      linhas.push(``, `[ Página ${p} ]`, ``, anotacoes[p], `${"─".repeat(50)}`)
+    })
+
+    expTextoAtual  = linhas.join("\n")
+    expNomeArquivo = `${livro}_anotacoes.txt`
+
+    document.getElementById("modal-exp-titulo").textContent = `Exportar todas (${paginas.length})`
+    document.getElementById("modal-exp-sub").textContent    = `${paginas.length} anotaç${paginas.length > 1 ? "ões" : "ão"} de "${livro}"`
+    document.getElementById("modal-exp-texto").value        = expTextoAtual
+    document.getElementById("modal-exportar").classList.add("aberto")
+  }
+
+  function baixarTxt() {
+    const blob = new Blob([expTextoAtual], { type: "text/plain;charset=utf-8" })
+    const a    = document.createElement("a")
+    a.href     = URL.createObjectURL(blob)
+    a.download = expNomeArquivo
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  function fecharModalExp() {
+    document.getElementById("modal-exportar").classList.remove("aberto")
+  }
+
+  // Fechar ao clicar no fundo escuro (fora do card)
+  function fecharModalExpOverlay(e) {
+    if (e.target === document.getElementById("modal-exportar")) fecharModalExp()
+  }
+
+  // Fechar modal com Escape
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") fecharModalExp()
+  })
 
   function escapeHtml(t) {
     return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
@@ -535,6 +695,44 @@
     const el = document.getElementById("erro")
     el.textContent = msg; el.style.display = "block"
   }
+</script>
+
+<script>
+(function() {
+  const wrap     = document.getElementById("btn-conta-wrap")
+  const role     = sessionStorage.getItem("sl_role")
+  const username = sessionStorage.getItem("sl_username")
+  const logado   = !!role
+
+  const btnStyle = "background:#222;color:#eee;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap;"
+
+  if (logado) {
+    wrap.innerHTML = `
+      <button id="conta-btn" style="${btnStyle}display:flex;align-items:center;gap:6px;">
+        👤 ${username || "Conta"} ▾
+      </button>
+      <div id="conta-menu" style="display:none;position:absolute;right:0;top:110%;background:#222;border:1px solid #444;border-radius:8px;min-width:150px;box-shadow:0 4px 16px rgba(0,0,0,0.6);z-index:100;">
+        <div style="padding:10px 14px;font-size:12px;color:#888;border-bottom:1px solid #333;">${username}</div>
+        <button onclick="sairConta()" style="width:100%;text-align:left;background:none;border:none;color:#f88;padding:10px 14px;font-size:13px;cursor:pointer;">🚪 Sair</button>
+      </div>`
+    document.getElementById("conta-btn").addEventListener("click", (e) => {
+      e.stopPropagation()
+      const m = document.getElementById("conta-menu")
+      m.style.display = m.style.display === "none" ? "block" : "none"
+    })
+    document.addEventListener("click", () => {
+      const m = document.getElementById("conta-menu")
+      if (m) m.style.display = "none"
+    })
+  } else {
+    wrap.innerHTML = `<button onclick="location.href='login.html'" style="${btnStyle}background:#fff;color:#111;font-weight:bold;">Entrar</button>`
+  }
+
+  function sairConta() {
+    sessionStorage.clear()
+    location.href = "index.html"
+  }
+})()
 </script>
 
 </body>
