@@ -11,35 +11,26 @@
     .topo {
       position: sticky; top: 0; background: #000;
       padding: 10px 16px; display: flex; align-items: center;
-      gap: 10px; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+      gap: 10px; z-index: 20; box-shadow: 0 2px 8px rgba(0,0,0,0.6);
       flex-wrap: wrap;
     }
-    .topo a {
-      color: #aaa; text-decoration: none; font-size: 14px;
-      white-space: nowrap;
-    }
+    .topo a { color: #aaa; text-decoration: none; font-size: 14px; white-space: nowrap; }
     .topo a:hover { color: white; }
     .topo-titulo {
       flex: 1; text-align: center; font-size: 14px;
       color: #ccc; white-space: nowrap; overflow: hidden;
       text-overflow: ellipsis; min-width: 0;
     }
-
-    /* ── Controles ── */
-    .controles {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    }
+    .controles { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .ctrl-btn {
       background: #222; color: white; border: none;
       border-radius: 6px; padding: 6px 12px; font-size: 13px;
       cursor: pointer; transition: background 0.15s; white-space: nowrap;
     }
     .ctrl-btn:hover { background: #444; }
+    .ctrl-btn.ativo { background: #ffd700; color: #111; }
 
-    /* ── Input ir para página ── */
-    .ir-pagina {
-      display: flex; align-items: center; gap: 5px;
-    }
+    .ir-pagina { display: flex; align-items: center; gap: 5px; }
     .ir-pagina input {
       width: 52px; padding: 5px 7px; font-size: 13px;
       border-radius: 6px; border: 1px solid #444;
@@ -50,20 +41,111 @@
 
     /* ── Viewer ── */
     #viewer { max-width: 900px; margin: auto; padding: 10px; }
-    .page   { margin-bottom: 20px; display: flex; justify-content: center; scroll-margin-top: 70px; }
-    canvas  { width: 100%; background: white; border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.6); }
+    .page { margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; scroll-margin-top: 70px; }
+    canvas { width: 100%; background: white; border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.6); }
     .placeholder { width: 100%; height: 900px; background: #222; border-radius: 5px; }
-
     #erro { text-align: center; padding: 40px; color: #f66; }
+    .page.destaque canvas { box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,0.4); }
 
-    /* ── Highlight de página alvo ── */
-    .page.destaque canvas {
-      box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,0.4);
+    /* ── Indicador de anotação na página ── */
+    .nota-badge {
+      align-self: flex-end;
+      margin-top: 4px; margin-right: 4px;
+      background: #ffd700; color: #111;
+      border-radius: 12px; padding: 2px 9px;
+      font-size: 11px; font-weight: bold;
+      cursor: pointer; user-select: none;
+      transition: transform 0.1s;
     }
+    .nota-badge:hover { transform: scale(1.08); }
+
+    /* ── Drawer de anotações ── */
+    #drawer {
+      position: fixed; top: 0; right: -420px;
+      width: 400px; max-width: 95vw; height: 100vh;
+      background: #1a1a1a; z-index: 30;
+      box-shadow: -4px 0 24px rgba(0,0,0,0.7);
+      transition: right 0.3s ease;
+      display: flex; flex-direction: column;
+    }
+    #drawer.aberto { right: 0; }
+
+    .drawer-header {
+      padding: 16px 18px; background: #111;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid #2a2a2a; flex-shrink: 0;
+    }
+    .drawer-header h3 { margin: 0; font-size: 15px; color: #eee; }
+    .drawer-fechar {
+      background: none; border: none; color: #888;
+      font-size: 20px; cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+    .drawer-fechar:hover { color: white; }
+
+    /* ── Área de edição da anotação atual ── */
+    .nota-atual {
+      padding: 16px 18px; border-bottom: 1px solid #2a2a2a; flex-shrink: 0;
+    }
+    .nota-atual label {
+      font-size: 12px; color: #888; display: block; margin-bottom: 6px;
+    }
+    .nota-atual textarea {
+      width: 100%; box-sizing: border-box;
+      background: #2a2a2a; color: #eee; border: 1px solid #333;
+      border-radius: 8px; padding: 10px; font-size: 14px;
+      resize: vertical; min-height: 100px; font-family: Arial, sans-serif;
+    }
+    .nota-atual textarea:focus { outline: none; border-color: #ffd700; }
+    .nota-atual-btns {
+      display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end;
+    }
+    .btn-salvar {
+      background: #ffd700; color: #111; border: none;
+      border-radius: 6px; padding: 7px 16px; font-size: 13px;
+      font-weight: bold; cursor: pointer; transition: background 0.15s;
+    }
+    .btn-salvar:hover { background: #ffe44d; }
+    .btn-salvar:disabled { background: #555; color: #999; cursor: not-allowed; }
+    .btn-apagar {
+      background: #3a1a1a; color: #f88; border: 1px solid #622;
+      border-radius: 6px; padding: 7px 12px; font-size: 13px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .btn-apagar:hover { background: #4a2020; }
+    .salvo-msg { font-size: 12px; color: #8f8; align-self: center; opacity: 0; transition: opacity 0.3s; }
+    .salvo-msg.visivel { opacity: 1; }
+
+    /* ── Lista de todas as anotações ── */
+    .notas-lista { flex: 1; overflow-y: auto; padding: 14px 18px; }
+    .notas-lista h4 { font-size: 12px; color: #666; margin: 0 0 12px; text-transform: uppercase; }
+    .nota-item {
+      background: #222; border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 10px; cursor: pointer; transition: background 0.15s;
+      border-left: 3px solid #ffd700;
+    }
+    .nota-item:hover { background: #2a2a2a; }
+    .nota-item-pag { font-size: 11px; color: #ffd700; font-weight: bold; margin-bottom: 4px; }
+    .nota-item-texto { font-size: 13px; color: #ccc; white-space: pre-wrap; word-break: break-word;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .notas-vazia { color: #555; font-size: 13px; text-align: center; margin-top: 30px; }
+
+    /* ── Overlay escuro ao abrir drawer ── */
+    #overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4); z-index: 25;
+    }
+    #overlay.visivel { display: block; }
+
+    /* ── Sem login ── */
+    .sem-login {
+      padding: 20px 18px; color: #888; font-size: 13px; text-align: center;
+    }
+    .sem-login a { color: #ffd700; }
 
     @media (max-width: 600px) {
       .topo-titulo { display: none; }
       .ctrl-btn { padding: 6px 9px; font-size: 12px; }
+      #drawer { width: 100vw; max-width: 100vw; }
     }
   </style>
 </head>
@@ -71,18 +153,14 @@
 
 <div class="topo">
   <a href="javascript:history.back()">← Voltar</a>
-
-  <span class="topo-titulo">Stronghold Library — Leitor</span>
-
+  <span class="topo-titulo"><a href="index.html" style="color:inherit;text-decoration:none;">Stronghold Library</a> — Leitor</span>
   <div class="controles">
-    <!-- Ir para página -->
     <div class="ir-pagina">
       <input id="input-pagina" type="number" min="1" placeholder="Pág." title="Ir para página">
       <button class="ctrl-btn" onclick="irParaPagina()">Ir</button>
       <span class="pagina-info" id="pagina-info">Pág. — / —</span>
     </div>
-
-    <!-- Download -->
+    <button class="ctrl-btn" id="btn-notas" onclick="toggleDrawer()" title="Minhas anotações">📝 Notas</button>
     <button class="ctrl-btn" onclick="baixarPDF()" title="Baixar PDF">⬇ Download</button>
   </div>
 </div>
@@ -90,17 +168,63 @@
 <div id="viewer"></div>
 <div id="erro" style="display:none"></div>
 
+<!-- ── Overlay ── -->
+<div id="overlay" onclick="fecharDrawer()"></div>
+
+<!-- ── Drawer de anotações ── -->
+<div id="drawer">
+  <div class="drawer-header">
+    <h3>📝 Anotações</h3>
+    <button class="drawer-fechar" onclick="fecharDrawer()">✕</button>
+  </div>
+
+  <!-- Conteúdo quando logado -->
+  <div id="drawer-logado" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+    <div class="nota-atual">
+      <label id="nota-label">Anotação — Pág. ?</label>
+      <textarea id="nota-texto" placeholder="Escreva sua anotação para esta página..."></textarea>
+      <div class="nota-atual-btns">
+        <span class="salvo-msg" id="salvo-msg">✓ Salvo</span>
+        <button class="btn-apagar" onclick="apagarNota()">🗑 Apagar</button>
+        <button class="btn-salvar" id="btn-salvar" onclick="salvarNota()">Salvar</button>
+      </div>
+    </div>
+    <div class="notas-lista">
+      <h4>Todas as anotações</h4>
+      <div id="lista-notas"></div>
+    </div>
+  </div>
+
+  <!-- Conteúdo quando não logado -->
+  <div id="drawer-sem-login" class="sem-login" style="display:none;">
+    <p>Para fazer anotações, você precisa estar logado.</p>
+    <a href="login.html">Fazer login →</a>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
+  const API    = "https://edischinho-github-io.onrender.com"
   const params = new URLSearchParams(window.location.search)
   const pdfUrl = params.get("pdf")
   const viewer = document.getElementById("viewer")
   let pdfDoc   = null
 
+  // ── Sessão do usuário (salva pelo login.html no sessionStorage) ──
+  const userId   = sessionStorage.getItem("sl_user_id")   || null
+  const username = sessionStorage.getItem("sl_username")  || null
+  const role     = sessionStorage.getItem("sl_role")      || null
+  const logado   = !!(userId || role === "admin")
+
+  // Anotações: { pagina: texto }
+  let anotacoes     = {}
+  let paginaNoDrawer = 1   // página sendo editada no drawer
+
   if (!pdfUrl) {
     mostrarErro("Nenhum arquivo especificado.")
   } else {
     carregarPDF(decodeURIComponent(pdfUrl))
+    if (logado) carregarAnotacoes()
   }
 
   // ── Carregar PDF ──
@@ -116,7 +240,7 @@
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const pageDiv = document.createElement("div")
-          pageDiv.className = "page"
+          pageDiv.className  = "page"
           pageDiv.dataset.page = i
           const placeholder = document.createElement("div")
           placeholder.className = "placeholder"
@@ -128,44 +252,34 @@
       .catch(err => mostrarErro("Erro ao carregar o PDF: " + err.message))
   }
 
-  // ── Página atual: scroll + getBoundingClientRect (100% preciso) ──
-  // A página atual é a que ocupa mais pixels visíveis na viewport
-  function atualizarPaginaAtual() {
-    if (!pdfDoc) return
-    const pages      = viewer.querySelectorAll(".page")
-    const alturaVP   = window.innerHeight
-    let   maxVisivel = 0
-    let   paginaAtual = 1
-
+  // ── Página atual ──
+  function paginaVisivel() {
+    const pages   = viewer.querySelectorAll(".page")
+    const alturaVP = window.innerHeight
+    let max = 0, atual = 1
     pages.forEach(p => {
-      const rect    = p.getBoundingClientRect()
-      const topo    = Math.max(rect.top,    0)
-      const base    = Math.min(rect.bottom, alturaVP)
-      const visivel = Math.max(base - topo, 0)
-
-      if (visivel > maxVisivel) {
-        maxVisivel  = visivel
-        paginaAtual = parseInt(p.dataset.page)
-      }
+      const r = p.getBoundingClientRect()
+      const vis = Math.max(Math.min(r.bottom, alturaVP) - Math.max(r.top, 0), 0)
+      if (vis > max) { max = vis; atual = parseInt(p.dataset.page) }
     })
-
-    document.getElementById("pagina-info").textContent =
-      `Pág. ${paginaAtual} / ${pdfDoc.numPages}`
+    return atual
   }
 
-  // Flag: suspende o contador durante navegação programática
-  let navegando   = false
-  let scrollTimer = null
+  function atualizarPaginaAtual() {
+    if (!pdfDoc) return
+    const num = paginaVisivel()
+    document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
+    // Sincroniza drawer se estiver aberto
+    if (document.getElementById("drawer").classList.contains("aberto")) {
+      abrirDrawerNaPagina(num)
+    }
+  }
 
+  let navegando = false, scrollTimer = null
   window.addEventListener("scroll", () => {
-    // Enquanto estiver navegando via "Ir", ignora scroll intermediário
     if (navegando) return
-
     if (scrollTimer) return
-    scrollTimer = setTimeout(() => {
-      atualizarPaginaAtual()
-      scrollTimer = null
-    }, 80)
+    scrollTimer = setTimeout(() => { atualizarPaginaAtual(); scrollTimer = null }, 80)
   }, { passive: true })
 
   // ── Lazy loading ──
@@ -191,59 +305,48 @@
       container.innerHTML = ""
       container.appendChild(canvas)
       page.render({ canvasContext: ctx, viewport })
+      // Adiciona badge se tiver anotação
+      if (logado) atualizarBadge(num, container)
     })
   }
 
   // ── Ir para página ──
+  let animacaoScroll = null
   function irParaPagina() {
     if (!pdfDoc) return
-
     const input = document.getElementById("input-pagina")
     let num = parseInt(input.value)
-
     if (isNaN(num) || num < 1) num = 1
-    if (num > pdfDoc.numPages) num = pdfDoc.numPages
+    if (num > pdfDoc.numPages)  num = pdfDoc.numPages
     input.value = num
 
     const alvo = viewer.querySelector(`.page[data-page="${num}"]`)
     if (!alvo) return
 
     navegando = true
-
-    // Atualiza contador imediatamente
     document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
 
-    // Renderiza a página alvo e vizinhas para garantir alturas reais
     for (let v = Math.max(1, num - 2); v <= Math.min(pdfDoc.numPages, num + 2); v++) {
-      const vizinho = viewer.querySelector(`.page[data-page="${v}"]`)
-      if (vizinho && vizinho.querySelector(".placeholder")) {
-        renderPage(v, vizinho)
-        observer.unobserve(vizinho)
-      }
+      const viz = viewer.querySelector(`.page[data-page="${v}"]`)
+      if (viz && viz.querySelector(".placeholder")) { renderPage(v, viz); observer.unobserve(viz) }
     }
 
-    // Efeito visual: fade out → pulo instantâneo → fade in
     viewer.style.transition = "opacity 0.15s ease"
     viewer.style.opacity    = "0"
 
     setTimeout(() => {
-      // Pulo preciso com DOM já estabilizado
       const topoAlvo = alvo.getBoundingClientRect().top + window.scrollY - 60
       window.scrollTo(0, topoAlvo)
-
-      // Segundo frame: corrige qualquer drift residual
       requestAnimationFrame(() => {
         const topoFinal = alvo.getBoundingClientRect().top + window.scrollY - 60
         window.scrollTo(0, topoFinal)
-
-        // Fade in
         viewer.style.opacity = "1"
-
         setTimeout(() => {
           viewer.style.transition = ""
           navegando = false
           document.getElementById("pagina-info").textContent = `Pág. ${num} / ${pdfDoc.numPages}`
           destacar(alvo)
+          if (document.getElementById("drawer").classList.contains("aberto")) abrirDrawerNaPagina(num)
         }, 150)
       })
     }, 150)
@@ -254,7 +357,6 @@
     setTimeout(() => el.classList.remove("destaque"), 1800)
   }
 
-  // Enter no campo de página também navega
   document.getElementById("input-pagina").addEventListener("keydown", e => {
     if (e.key === "Enter") irParaPagina()
   })
@@ -267,22 +369,171 @@
       const blob = await res.blob()
       const a    = document.createElement("a")
       a.href     = URL.createObjectURL(blob)
-      // Nome do arquivo a partir da URL
       a.download = url.split("/").pop().replace(/^\d+-/, "") || "livro.pdf"
       a.click()
       URL.revokeObjectURL(a.href)
+    } catch { window.open(url, "_blank") }
+  }
+
+  // ─────────────────────────────────────────────
+  // ── ANOTAÇÕES ──
+  // ─────────────────────────────────────────────
+
+  async function carregarAnotacoes() {
+    if (!logado || !userId) return
+    try {
+      const res  = await fetch(`${API}/anotacoes?user_id=${encodeURIComponent(userId)}&livro_url=${encodeURIComponent(pdfUrl)}`)
+      const data = await res.json()
+      anotacoes = data
+      // Atualiza badges nas páginas já renderizadas
+      viewer.querySelectorAll(".page").forEach(p => {
+        const num = parseInt(p.dataset.page)
+        atualizarBadge(num, p)
+      })
+      renderizarListaNotas()
     } catch (err) {
-      // Fallback: abre direto no browser (que oferece o download nativamente)
-      window.open(url, "_blank")
+      console.error("Erro ao carregar anotações:", err)
     }
   }
+
+  // Badge amarelo embaixo da página
+  function atualizarBadge(num, container) {
+    const existente = container.querySelector(".nota-badge")
+    if (existente) existente.remove()
+
+    if (anotacoes[num]) {
+      const badge = document.createElement("div")
+      badge.className   = "nota-badge"
+      badge.textContent = "📝 Anotação"
+      badge.onclick     = () => { abrirDrawerNaPagina(num); abrirDrawer() }
+      container.appendChild(badge)
+    }
+  }
+
+  // ── Drawer ──
+  function toggleDrawer() {
+    const drawer = document.getElementById("drawer")
+    if (drawer.classList.contains("aberto")) {
+      fecharDrawer()
+    } else {
+      abrirDrawer()
+    }
+  }
+
+  function abrirDrawer() {
+    const drawer  = document.getElementById("drawer")
+    const overlay = document.getElementById("overlay")
+    const btn     = document.getElementById("btn-notas")
+
+    drawer.classList.add("aberto")
+    overlay.classList.add("visivel")
+    btn.classList.add("ativo")
+
+    if (logado && userId) {
+      document.getElementById("drawer-logado").style.display    = "flex"
+      document.getElementById("drawer-sem-login").style.display = "none"
+      abrirDrawerNaPagina(paginaVisivel())
+    } else {
+      document.getElementById("drawer-logado").style.display    = "none"
+      document.getElementById("drawer-sem-login").style.display = "block"
+    }
+  }
+
+  function fecharDrawer() {
+    document.getElementById("drawer").classList.remove("aberto")
+    document.getElementById("overlay").classList.remove("visivel")
+    document.getElementById("btn-notas").classList.remove("ativo")
+  }
+
+  // Sincroniza o textarea com a página indicada
+  function abrirDrawerNaPagina(num) {
+    paginaNoDrawer = num
+    document.getElementById("nota-label").textContent  = `Anotação — Pág. ${num}`
+    document.getElementById("nota-texto").value        = anotacoes[num] || ""
+    document.getElementById("salvo-msg").classList.remove("visivel")
+  }
+
+  // ── Salvar ──
+  async function salvarNota() {
+    if (!logado || !userId) return
+    const texto = document.getElementById("nota-texto").value
+    const btn   = document.getElementById("btn-salvar")
+    btn.disabled = true; btn.textContent = "Salvando..."
+
+    try {
+      const res  = await fetch(`${API}/anotacoes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, livro_url: pdfUrl, pagina: paginaNoDrawer, texto })
+      })
+      const data = await res.json()
+      if (data.status === "ok") {
+        if (texto.trim()) {
+          anotacoes[paginaNoDrawer] = texto.trim()
+        } else {
+          delete anotacoes[paginaNoDrawer]
+        }
+        // Atualiza badge da página
+        const pageDiv = viewer.querySelector(`.page[data-page="${paginaNoDrawer}"]`)
+        if (pageDiv) atualizarBadge(paginaNoDrawer, pageDiv)
+        renderizarListaNotas()
+        // Mostrar confirmação
+        const msg = document.getElementById("salvo-msg")
+        msg.classList.add("visivel")
+        setTimeout(() => msg.classList.remove("visivel"), 2000)
+      }
+    } catch (err) {
+      console.error("Erro ao salvar:", err)
+    } finally {
+      btn.disabled = false; btn.textContent = "Salvar"
+    }
+  }
+
+  // ── Apagar ──
+  async function apagarNota() {
+    document.getElementById("nota-texto").value = ""
+    await salvarNota()
+  }
+
+  // ── Lista lateral ──
+  function renderizarListaNotas() {
+    const lista  = document.getElementById("lista-notas")
+    const paginas = Object.keys(anotacoes).map(Number).sort((a, b) => a - b)
+
+    if (!paginas.length) {
+      lista.innerHTML = '<p class="notas-vazia">Nenhuma anotação ainda.</p>'
+      return
+    }
+
+    lista.innerHTML = paginas.map(p => `
+      <div class="nota-item" onclick="irParaNota(${p})">
+        <div class="nota-item-pag">Página ${p}</div>
+        <div class="nota-item-texto">${escapeHtml(anotacoes[p])}</div>
+      </div>
+    `).join("")
+  }
+
+  function irParaNota(num) {
+    abrirDrawerNaPagina(num)
+    // Navega para a página sem fechar o drawer
+    document.getElementById("input-pagina").value = num
+    irParaPagina()
+  }
+
+  function escapeHtml(t) {
+    return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+  }
+
+  // Salvar com Ctrl+Enter no textarea
+  document.getElementById("nota-texto").addEventListener("keydown", e => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) salvarNota()
+  })
 
   // ── Erro ──
   function mostrarErro(msg) {
     viewer.style.display = "none"
     const el = document.getElementById("erro")
-    el.textContent = msg
-    el.style.display = "block"
+    el.textContent = msg; el.style.display = "block"
   }
 </script>
 
