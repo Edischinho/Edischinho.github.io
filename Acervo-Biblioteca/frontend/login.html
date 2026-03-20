@@ -2,63 +2,268 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Login Admin — Stronghold Library</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Stronghold Library</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #111;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border-radius: 14px;
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    .card h1 {
+      text-align: center;
+      font-size: 20px;
+      color: #eee;
+      margin: 0 0 24px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Abas ── */
+    .abas {
+      display: flex;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 24px;
+      border: 1px solid #333;
+    }
+    .aba {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+      cursor: pointer;
+      background: #222;
+      color: #888;
+      border: none;
+      transition: background 0.2s, color 0.2s;
+    }
+    .aba.ativa {
+      background: #fff;
+      color: #111;
+      font-weight: bold;
+    }
+
+    /* ── Campos ── */
+    .campo {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .campo.ativo { display: flex; }
+
+    .campo input {
+      width: 100%;
+      padding: 11px 14px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #2a2a2a;
+      color: #eee;
+      font-size: 15px;
+      box-sizing: border-box;
+    }
+    .campo input:focus {
+      outline: none;
+      border-color: #666;
+    }
+    .campo input::placeholder { color: #666; }
+
+    .campo button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background: #fff;
+      color: #111;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 4px;
+    }
+    .campo button:hover    { background: #ddd; }
+    .campo button:disabled { background: #555; color: #999; cursor: not-allowed; }
+
+    /* ── Mensagens ── */
+    .msg {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+      margin-top: 4px;
+    }
+    .msg.erro { background: #3a1a1a; color: #f88; border: 1px solid #622; }
+    .msg.ok   { background: #1a3a1a; color: #8f8; border: 1px solid #262; }
+
+    .voltar {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      color: #666;
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .voltar:hover { color: #aaa; }
+  </style>
 </head>
 <body>
 
-<div class="form-wrap">
-  <h2>Login Admin</h2>
-  <input id="user" placeholder="Usuário" autocomplete="username">
-  <input id="pass" type="password" placeholder="Senha" autocomplete="current-password">
-  <button onclick="login()">Entrar</button>
-  <p id="erro" class="erro" style="display:none">Usuário ou senha incorretos.</p>
+<div class="card">
+  <h1>📚 Stronghold Library</h1>
+
+  <div class="abas">
+    <button class="aba ativa" onclick="trocarAba('login')">Entrar</button>
+    <button class="aba"       onclick="trocarAba('registro')">Criar conta</button>
+  </div>
+
+  <!-- ── Aba Login ── -->
+  <div id="campo-login" class="campo ativo">
+    <input id="login-email" type="email"    placeholder="E-mail" autocomplete="email">
+    <input id="login-senha" type="password" placeholder="Senha"  autocomplete="current-password">
+    <button id="btn-login" onclick="fazerLogin()">Entrar</button>
+    <div id="msg-login" class="msg"></div>
+  </div>
+
+  <!-- ── Aba Registro ── -->
+  <div id="campo-registro" class="campo">
+    <input id="reg-nome"  type="text"     placeholder="Nome de usuário">
+    <input id="reg-email" type="email"    placeholder="E-mail"          autocomplete="email">
+    <input id="reg-senha" type="password" placeholder="Senha (mín. 6 caracteres)" autocomplete="new-password">
+    <button id="btn-reg" onclick="fazerRegistro()">Criar conta</button>
+    <div id="msg-reg" class="msg"></div>
+  </div>
 </div>
+
+<a class="voltar" href="index.html">← Voltar para a biblioteca</a>
 
 <script>
 const API = "https://edischinho-github-io.onrender.com"
 
-// Acorda o Render assim que a página abre
+// Acorda o Render
 fetch(`${API}/`, { method: "GET", mode: "cors" }).catch(() => {})
 
-async function login() {
-  const user = document.getElementById("user").value.trim()
-  const pass = document.getElementById("pass").value
+// ── Trocar aba ──
+function trocarAba(aba) {
+  document.getElementById("campo-login").classList.toggle("ativo",    aba === "login")
+  document.getElementById("campo-registro").classList.toggle("ativo", aba === "registro")
+  document.querySelectorAll(".aba").forEach((b, i) => {
+    b.classList.toggle("ativa", (i === 0 && aba === "login") || (i === 1 && aba === "registro"))
+  })
+  // Limpa mensagens ao trocar
+  ;["msg-login","msg-reg"].forEach(id => {
+    const el = document.getElementById(id)
+    el.style.display = "none"; el.className = "msg"
+  })
+}
 
-  if (!user || !pass) {
-    mostrarErro("Preencha todos os campos.")
+// ── Login ──
+async function fazerLogin() {
+  const email = document.getElementById("login-email").value.trim()
+  const senha = document.getElementById("login-senha").value
+  const btn   = document.getElementById("btn-login")
+
+  if (!email || !senha) { mostrarMsg("msg-login", "Preencha todos os campos.", "erro"); return }
+
+  // Verificar se é admin (por e-mail especial ou pelo campo user)
+  // Admin usa usuário "admin" + senha "1234" no campo de e-mail e senha
+  if (email === "admin" && senha === "1234") {
+    // Login admin via rota dedicada
+    btn.disabled = true; btn.textContent = "Entrando..."
+    try {
+      const res  = await fetch(`${API}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: "admin", password: "1234" })
+      })
+      const data = await res.json()
+      if (data.status === "ok") {
+        sessionStorage.setItem("sl_role", "admin")
+        location.href = "admin.html"
+      } else {
+        mostrarMsg("msg-login", data.message, "erro")
+      }
+    } catch { mostrarMsg("msg-login", "Erro de conexão.", "erro") }
+    finally { btn.disabled = false; btn.textContent = "Entrar" }
     return
   }
 
+  // Login usuário comum via Supabase Auth
+  btn.disabled = true; btn.textContent = "Entrando..."
   try {
-    const res = await fetch(`${API}/login`, {
+    const res  = await fetch(`${API}/loginUsuario`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // ✅ envia { user, password } — igual ao que server.js espera
-      body: JSON.stringify({ user, password: pass })
+      body: JSON.stringify({ email, password: senha })
     })
-
     const data = await res.json()
-
     if (data.status === "ok") {
-      location.href = "admin.html"
+      sessionStorage.setItem("sl_role",     "user")
+      sessionStorage.setItem("sl_username", data.username)
+      location.href = "livraria.html"
     } else {
-      mostrarErro("Usuário ou senha incorretos.")
+      mostrarMsg("msg-login", data.message, "erro")
     }
-  } catch (err) {
-    mostrarErro("Erro de conexão com o servidor.")
-  }
+  } catch { mostrarMsg("msg-login", "Erro de conexão.", "erro") }
+  finally { btn.disabled = false; btn.textContent = "Entrar" }
 }
 
-function mostrarErro(msg) {
-  const el = document.getElementById("erro")
-  el.textContent = msg
+// ── Registro ──
+async function fazerRegistro() {
+  const nome  = document.getElementById("reg-nome").value.trim()
+  const email = document.getElementById("reg-email").value.trim()
+  const senha = document.getElementById("reg-senha").value
+  const btn   = document.getElementById("btn-reg")
+
+  if (!nome || !email || !senha) { mostrarMsg("msg-reg", "Preencha todos os campos.", "erro"); return }
+
+  btn.disabled = true; btn.textContent = "Criando conta..."
+  try {
+    const res  = await fetch(`${API}/registro`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: senha, username: nome })
+    })
+    const data = await res.json()
+    if (data.status === "ok") {
+      mostrarMsg("msg-reg", "✅ Conta criada! Agora faça login.", "ok")
+      // Preenche o e-mail na aba de login e troca de aba após 1.5s
+      setTimeout(() => {
+        document.getElementById("login-email").value = email
+        trocarAba("login")
+      }, 1500)
+    } else {
+      mostrarMsg("msg-reg", data.message, "erro")
+    }
+  } catch { mostrarMsg("msg-reg", "Erro de conexão.", "erro") }
+  finally { btn.disabled = false; btn.textContent = "Criar conta" }
+}
+
+// ── Helper ──
+function mostrarMsg(id, msg, tipo) {
+  const el = document.getElementById(id)
+  el.textContent  = msg
+  el.className    = `msg ${tipo}`
   el.style.display = "block"
 }
 
-// Permitir Enter para logar
+// Enter dispara o botão da aba ativa
 document.addEventListener("keydown", e => {
-  if (e.key === "Enter") login()
+  if (e.key !== "Enter") return
+  const loginAtivo = document.getElementById("campo-login").classList.contains("ativo")
+  loginAtivo ? fazerLogin() : fazerRegistro()
 })
 </script>
 
