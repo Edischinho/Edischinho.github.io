@@ -57,7 +57,7 @@
 </head>
 <body>
 
-<header>Stronghold Library — Admin</header>
+<header><a href="index.html" style="color:inherit;text-decoration:none;">Stronghold Library</a> — Admin</header>
 
 <div class="container">
   <h2>Adicionar Livro</h2>
@@ -105,6 +105,12 @@
 
 <script>
 const API = "https://edischinho-github-io.onrender.com"
+
+// Token admin salvo no login
+function authHeader() {
+  const token = localStorage.getItem("sl_admin_token") || ""
+  return token ? { "Authorization": "Bearer " + token } : {}
+}
 let idEditando = null
 
 fetch(`${API}/`, { method: "GET", mode: "cors" }).catch(() => {})
@@ -152,7 +158,11 @@ async function addLivro() {
   mostrarStatus("Enviando para o servidor...", "info")
 
   try {
-    const res  = await fetch(`${API}/addLivro`, { method: "POST", body: formData })
+    const res  = await fetch(`${API}/addLivro`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` },
+      body: formData
+    })
     const data = await res.json()
     if (data.status === "ok") {
       mostrarStatus("✅ Livro enviado com sucesso!", "ok")
@@ -266,7 +276,10 @@ async function salvarEdicao() {
   try {
     const res  = await fetch(`${API}/livros/${idEditando}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}`
+      },
       body: JSON.stringify({ titulo, autor, descricao, tags })
     })
     const data = await res.json()
@@ -289,7 +302,10 @@ async function salvarEdicao() {
 async function deletarLivro(id) {
   if (!confirm("Remover este livro?")) return
   try {
-    const res  = await fetch(`${API}/livros/${id}`, { method: "DELETE" })
+    const res  = await fetch(`${API}/livros/${id}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` }
+    })
     const data = await res.json()
     if (data.status === "ok") carregarLivrosAdmin()
     else alert("Erro ao remover: " + data.message)
