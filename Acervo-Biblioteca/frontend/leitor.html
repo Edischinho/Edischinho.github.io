@@ -316,6 +316,17 @@
           viewer.appendChild(pageDiv)
           observer.observe(pageDiv)
         }
+
+        // Restaurar última página lida
+        const chave        = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
+        const ultimaPagina = parseInt(localStorage.getItem(chave))
+        if (ultimaPagina && ultimaPagina > 1 && ultimaPagina <= pdf.numPages) {
+          // Pequeno delay para o DOM montar os placeholders
+          setTimeout(() => {
+            document.getElementById("input-pagina").value = ultimaPagina
+            irParaPagina()
+          }, 200)
+        }
       })
       .catch(err => mostrarErro("Erro ao carregar o PDF: " + err.message))
   }
@@ -347,8 +358,24 @@
   window.addEventListener("scroll", () => {
     if (navegando) return
     if (scrollTimer) return
-    scrollTimer = setTimeout(() => { atualizarPaginaAtual(); scrollTimer = null }, 80)
+    scrollTimer = setTimeout(() => {
+      atualizarPaginaAtual()
+      // Salva página atual no localStorage com chave única por livro
+      if (pdfDoc && pdfUrl) {
+        const chave = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
+        localStorage.setItem(chave, paginaVisivel())
+      }
+      scrollTimer = null
+    }, 80)
   }, { passive: true })
+
+  // Salva também ao sair/fechar a aba
+  window.addEventListener("beforeunload", () => {
+    if (pdfDoc && pdfUrl) {
+      const chave = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
+      localStorage.setItem(chave, paginaVisivel())
+    }
+  })
 
   // ── Lazy loading ──
   const observer = new IntersectionObserver(entries => {
