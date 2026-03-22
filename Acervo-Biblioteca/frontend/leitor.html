@@ -43,10 +43,10 @@
     /* ── Viewer ── */
     #viewer { max-width: 900px; margin: auto; padding: 10px; }
     .page { margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; scroll-margin-top: 70px; }
-    canvas { width: 100%; background: white; border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.6); }
+    .pdf-canvas { display: block; width: 100%; background: white; border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.6); }
     .placeholder { width: 100%; height: 900px; background: #222; border-radius: 5px; }
     #erro { text-align: center; padding: 40px; color: #f66; }
-    .page.destaque canvas { box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,0.4); }
+    .page.destaque .pdf-canvas { box-shadow: 0 0 0 3px #ffd700, 0 0 16px rgba(255,215,0,0.4); }
 
     /* ── Indicador de anotação na página ── */
     .nota-badge {
@@ -208,15 +208,15 @@
     .cor-btn.apagar { background: #333; border: 2px dashed #888; font-size: 13px;
                       display:flex; align-items:center; justify-content:center; color:#aaa; }
 
-    /* Canvas de desenho — fica sobre o canvas do PDF */
+    /* Canvas de desenho — sobreposto ao PDF, fora do fluxo */
     .draw-canvas {
       position: absolute; top: 0; left: 0;
       width: 100%; height: 100%;
       border-radius: 5px;
-      touch-action: none;   /* impede scroll ao desenhar */
+      pointer-events: none;
+      /* touch-action só ativo no modo HL — via JS */
     }
-    .modoHL .draw-canvas { cursor: crosshair; pointer-events: auto; }
-    .draw-canvas          { pointer-events: none; }
+    .modoHL .draw-canvas { cursor: crosshair; pointer-events: auto; touch-action: none; }
 
     /* Popover */
     #hl-popover {
@@ -547,24 +547,30 @@
       const wrap = document.createElement("div")
       wrap.style.cssText = "position:relative;width:100%;display:block;line-height:0;"
 
-      // Canvas do PDF (apenas leitura)
+      // Canvas do PDF
       const pdfCanvas = document.createElement("canvas")
       const ctx       = pdfCanvas.getContext("2d")
       pdfCanvas.height = viewport.height
       pdfCanvas.width  = viewport.width
-      pdfCanvas.style.cssText = "display:block;width:100%;border-radius:5px;"
+      pdfCanvas.className = "pdf-canvas"
       wrap.appendChild(pdfCanvas)
-
-      // Canvas de desenho — sobreposto, transparente, mesmas dimensões
-      const dc = document.createElement("canvas")
-      dc.className   = "draw-canvas"
-      dc.width       = viewport.width
-      dc.height      = viewport.height
-      dc.dataset.pag = num
-      wrap.appendChild(dc)
 
       container.innerHTML = ""
       container.appendChild(wrap)
+
+      // Após inserir no DOM, wrap tem tamanho real — montar draw-canvas
+      requestAnimationFrame(() => {
+        const dc = document.createElement("canvas")
+        dc.className   = "draw-canvas"
+        dc.width       = viewport.width
+        dc.height      = viewport.height
+        dc.dataset.pag = num
+        wrap.appendChild(dc)
+
+        restaurarDesenho(num, dc)
+        iniciarDesenho(dc, num)
+        if (logado) atualizarBadge(num, container)
+      })
 
       // Renderizar PDF
       page.render({ canvasContext: ctx, viewport })
