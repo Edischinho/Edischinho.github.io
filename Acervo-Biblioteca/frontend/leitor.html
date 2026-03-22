@@ -1008,10 +1008,17 @@
   // ── Iniciar eventos de desenho num canvas ──
   function iniciarDesenho(dc, num) {
     let desenhando = false
-    let tracos = []   // pontos do traço atual
+    let tracos     = []
+
+    // Canvas temporário — recebe o traço atual com opacidade 1
+    // Só é composto no draw-canvas ao terminar, com alpha fixo
+    const tmp    = document.createElement("canvas")
+    tmp.width    = dc.width
+    tmp.height   = dc.height
+    const tmpCtx = tmp.getContext("2d")
 
     function ptRelativo(e) {
-      const r = dc.getBoundingClientRect()
+      const r   = dc.getBoundingClientRect()
       const src = e.touches ? e.touches[0] : e
       return {
         x: (src.clientX - r.left) * (dc.width  / r.width),
@@ -1020,46 +1027,72 @@
     }
 
     function iniciar(e) {
-      if (!modoHL) return
-      if (corSelecionada === "") return
+      if (!modoHL || corSelecionada === "") return
       e.preventDefault()
       desenhando = true
       tracos = []
-      const pt = ptRelativo(e)
-      tracos.push(pt)
+      tmpCtx.clearRect(0, 0, tmp.width, tmp.height)
+      tracos.push(ptRelativo(e))
     }
 
     function mover(e) {
       if (!desenhando || !modoHL) return
       e.preventDefault()
-      const pt  = ptRelativo(e)
-      const ctx = dc.getContext("2d")
-
-      // Desenhar segmento do traço com cor semitransparente
-      ctx.globalCompositeOperation = "source-over"
-      ctx.strokeStyle = corSelecionada
-      ctx.lineWidth   = 18
-      ctx.lineCap     = "round"
-      ctx.lineJoin    = "round"
-      ctx.globalAlpha = 0.35
-
+      const pt   = ptRelativo(e)
       const prev = tracos[tracos.length - 1]
-      ctx.beginPath()
-      ctx.moveTo(prev.x, prev.y)
-      ctx.lineTo(pt.x, pt.y)
-      ctx.stroke()
-      ctx.globalAlpha = 1
+
+      // Desenhar no canvas temporário com opacidade 1
+      // O traço completo terá transparência uniforme ao ser composto
+      tmpCtx.globalCompositeOperation = "source-over"
+      tmpCtx.strokeStyle = corSelecionada
+      tmpCtx.lineWidth   = 20
+      tmpCtx.lineCap     = "round"
+      tmpCtx.lineJoin    = "round"
+      tmpCtx.globalAlpha = 1
+      tmpCtx.beginPath()
+      tmpCtx.moveTo(prev.x, prev.y)
+      tmpCtx.lineTo(pt.x, pt.y)
+      tmpCtx.stroke()
 
       tracos.push(pt)
+
+      // Prévia em tempo real: redesenha o draw-canvas com o tmp sobreposto
+      // Limpa só a área de previsualização, não apaga marcações anteriores
+      const ctx = dc.getContext("2d")
+      // Salvar snapshot atual sem o traço em andamento
+      if (!dc._snapshot) {
+        dc._snapshot = document.createElement("canvas")
+        dc._snapshot.width  = dc.width
+        dc._snapshot.height = dc.height
+        dc._snapshot.getContext("2d").drawImage(dc, 0, 0)
+      }
+      ctx.clearRect(0, 0, dc.width, dc.height)
+      ctx.drawImage(dc._snapshot, 0, 0)
+      // Compor traço atual com alpha fixo de 35%
+      ctx.globalAlpha = 0.35
+      ctx.globalCompositeOperation = "source-over"
+      ctx.drawImage(tmp, 0, 0)
+      ctx.globalAlpha = 1
+      ctx.globalCompositeOperation = "source-over"
     }
 
     function terminar(e) {
       if (!desenhando || !modoHL) return
       desenhando = false
+      dc._snapshot = null   // limpar snapshot
+
       if (tracos.length < 2) return
 
-      // Salvar estado atual do canvas como highlight desta página
-      const id     = "hl_" + num + "_" + Date.now()
+      // Compor traço final no draw-canvas com alpha fixo — não acumula
+      const ctx = dc.getContext("2d")
+      ctx.globalAlpha = 0.35
+      ctx.globalCompositeOperation = "source-over"
+      ctx.drawImage(tmp, 0, 0)
+      ctx.globalAlpha = 1
+      ctx.globalCompositeOperation = "source-over"
+      tmpCtx.clearRect(0, 0, tmp.width, tmp.height)
+
+      const id      = "hl_" + num + "_" + Date.now()
       const imgData = dc.toDataURL("image/png")
       highlights[id] = { pagina: num, cor: corSelecionada, nota: "", imgData }
       persistirHL(id)
