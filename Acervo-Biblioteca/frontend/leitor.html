@@ -341,15 +341,36 @@
         }
 
         // Restaurar última página lida
-        const chave        = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
-        const ultimaPagina = parseInt(localStorage.getItem(chave))
-        if (ultimaPagina && ultimaPagina > 1 && ultimaPagina <= pdf.numPages) {
-          // Pequeno delay para o DOM montar os placeholders
-          setTimeout(() => {
-            document.getElementById("input-pagina").value = ultimaPagina
-            irParaPagina()
-          }, 200)
+        const chave      = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
+        const localPag   = parseInt(localStorage.getItem(chave)) || 0
+
+        async function restaurarProgresso() {
+          let pagFinal = localPag
+
+          // Se logado, busca do Supabase (pode ser mais recente que o local)
+          if (logado && userId) {
+            try {
+              const { data } = await _supa
+                .from("progresso")
+                .select("pagina")
+                .eq("user_id", userId)
+                .eq("livro_url", pdfUrl)
+                .single()
+              if (data && data.pagina > pagFinal) {
+                pagFinal = data.pagina
+              }
+            } catch {}
+          }
+
+          if (pagFinal > 1 && pagFinal <= pdf.numPages) {
+            setTimeout(() => {
+              document.getElementById("input-pagina").value = pagFinal
+              irParaPagina()
+            }, 200)
+          }
         }
+
+        restaurarProgresso()
       })
       .catch(err => mostrarErro("Erro ao carregar o PDF: " + err.message))
   }
@@ -378,27 +399,46 @@
   }
 
   let navegando = false, scrollTimer = null
+  let _ultimaPaginaSalva = 0
+  let _saveTimer = null
+
   window.addEventListener("scroll", () => {
     if (navegando) return
     if (scrollTimer) return
     scrollTimer = setTimeout(() => {
       atualizarPaginaAtual()
-      // Salva página atual no localStorage com chave única por livro
-      if (pdfDoc && pdfUrl) {
-        const chave = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
-        localStorage.setItem(chave, paginaVisivel())
-      }
+      salvarProgresso()
       scrollTimer = null
     }, 80)
   }, { passive: true })
 
-  // Salva também ao sair/fechar a aba
-  window.addEventListener("beforeunload", () => {
-    if (pdfDoc && pdfUrl) {
-      const chave = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
-      localStorage.setItem(chave, paginaVisivel())
+  // Salva ao sair/fechar aba
+  window.addEventListener("beforeunload", () => salvarProgresso(true))
+
+  // ── Salvar progresso ──
+  function salvarProgresso(forcar = false) {
+    if (!pdfDoc || !pdfUrl) return
+    const pag = paginaVisivel()
+    if (pag === _ultimaPaginaSalva && !forcar) return
+    _ultimaPaginaSalva = pag
+
+    // Sempre salva no localStorage (instantâneo, funciona offline)
+    const chave = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
+    localStorage.setItem(chave, pag)
+
+    // Salva no Supabase se logado (sincroniza entre dispositivos)
+    if (logado && userId) {
+      if (_saveTimer) clearTimeout(_saveTimer)
+      _saveTimer = setTimeout(async () => {
+        try {
+          await _supa.from("progresso").upsert(
+            { user_id: userId, livro_url: pdfUrl, pagina: pag, updated_at: new Date().toISOString() },
+            { onConflict: "user_id,livro_url" }
+          )
+        } catch {}
+      }, 1000) // debounce: só envia 1s após parar de rolar
     }
-  })
+  }
 
   // ── Lazy loading ──
   const observer = new IntersectionObserver(entries => {
