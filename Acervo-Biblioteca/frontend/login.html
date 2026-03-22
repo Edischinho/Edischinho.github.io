@@ -69,10 +69,15 @@ const SUPA_URL = "https://iwggwgepwbrvmmrgsrvr.supabase.co"
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3Z2d3Z2Vwd2Jydm1tcmdzcnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mzc4ODcsImV4cCI6MjA4OTExMzg4N30.BFaHUNavW7VOApg35r01SHsfjgYKUnhlT7YSADF9H6U"
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY)
 
-// Se já estiver logado, redireciona
-supa.auth.getSession().then(({ data }) => {
-  if (data.session) location.href = "livraria.html"
-})
+// Se já estiver logado como usuário comum, redireciona
+// Mas se vier da página admin (?from=admin), não redireciona automaticamente
+const _next      = new URLSearchParams(location.search).get("next") || "livraria.html"
+const _fromAdmin = new URLSearchParams(location.search).get("from") === "admin"
+if (!_fromAdmin) {
+  supa.auth.getSession().then(({ data }) => {
+    if (data.session) location.href = _next
+  })
+}
 
 function trocarAba(aba) {
   document.getElementById("campo-login").classList.toggle("ativo",    aba === "login")
@@ -127,7 +132,7 @@ async function fazerLogin() {
   // Salva só o que as outras páginas precisam exibir
   localStorage.setItem("sl_role",     "user")
   localStorage.setItem("sl_username", data.user.user_metadata?.username || email.split("@")[0])
-  location.href = "livraria.html"
+  location.href = _next
 }
 
 async function fazerRegistro() {
