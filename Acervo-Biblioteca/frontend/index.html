@@ -26,8 +26,8 @@
 <script>
 (function() {
   const wrap    = document.getElementById("btn-conta-wrap")
-  const role    = sessionStorage.getItem("sl_role")
-  const username = sessionStorage.getItem("sl_username")
+  const role    = localStorage.getItem("sl_role")
+  const username = localStorage.getItem("sl_username")
   const logado  = !!role
 
   if (logado) {
@@ -55,7 +55,7 @@
   }
 
   function sair() {
-    sessionStorage.clear()
+    ["sl_role","sl_username","sl_user_id"].forEach(k => localStorage.removeItem(k))
     location.reload()
   }
 })()
