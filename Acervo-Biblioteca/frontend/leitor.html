@@ -194,71 +194,56 @@
     }
     .btn-dl-txt:hover { background: #ffe44d; }
 
-    /* ── Sistema de highlights ── */
+    /* ── Sistema de marcações (canvas livre) ── */
     .page { position: relative; }
 
-    /* Seletor de cores na barra */
-    .cores-wrap { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    /* Seletor de cores */
+    .cores-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .cor-btn {
-      width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent;
+      width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent;
       cursor: pointer; transition: transform 0.15s, border-color 0.15s; flex-shrink: 0;
     }
-    .cor-btn:hover  { transform: scale(1.2); }
-    .cor-btn.ativa  { border-color: white; transform: scale(1.15); }
-    .cor-btn.apagar { background: #333; border: 2px dashed #888; font-size: 11px;
+    .cor-btn:hover { transform: scale(1.2); }
+    .cor-btn.ativa { border-color: white; transform: scale(1.15); }
+    .cor-btn.apagar { background: #333; border: 2px dashed #888; font-size: 13px;
                       display:flex; align-items:center; justify-content:center; color:#aaa; }
 
-    /* textLayer do PDF.js */
-    .textLayer {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      overflow: hidden; opacity: 1; line-height: 1;
-      pointer-events: none;
+    /* Canvas de desenho — fica sobre o canvas do PDF */
+    .draw-canvas {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      border-radius: 5px;
+      touch-action: none;   /* impede scroll ao desenhar */
     }
-    .modoHL .textLayer { pointer-events: auto; cursor: text; user-select: text; -webkit-user-select: text; }
-
-    /* SVG de highlights */
-    .hl-svg {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; overflow: visible;
-    }
-    .hl-rect {
-      pointer-events: auto; cursor: pointer;
-      transition: opacity 0.15s;
-    }
-    .hl-rect:hover { opacity: 0.75; }
+    .modoHL .draw-canvas { cursor: crosshair; pointer-events: auto; }
+    .draw-canvas          { pointer-events: none; }
 
     /* Popover */
     #hl-popover {
       position: fixed; z-index: 200;
       background: #1e1e1e; border: 1px solid #444; border-radius: 10px;
       padding: 12px 14px; max-width: 280px; min-width: 180px;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.7);
-      display: none;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.7); display: none;
     }
     #hl-popover.visivel { display: block; }
-    .hl-pop-cor { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-    .hl-pop-texto { font-size: 13px; color: #ccc; margin: 6px 0; white-space: pre-wrap; word-break: break-word; max-height: 80px; overflow: hidden; }
-    .hl-pop-vazia { font-size: 12px; color: #666; margin: 6px 0; font-style: italic; }
-    .hl-pop-btns { display: flex; gap: 8px; margin-top: 10px; }
-    .hl-pop-btn {
-      flex: 1; padding: 6px; border: none; border-radius: 6px;
-      font-size: 12px; cursor: pointer; font-weight: bold;
-    }
-    .hl-pop-abrir { background: #ffd700; color: #111; }
-    .hl-pop-abrir:hover { background: #ffe44d; }
-    .hl-pop-del   { background: #3a1a1a; color: #f88; border: 1px solid #622; }
-    .hl-pop-del:hover { background: #4a2020; }
+    .hl-pop-cor   { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+    .hl-pop-texto { font-size:13px; color:#ccc; margin:6px 0; white-space:pre-wrap; word-break:break-word; max-height:80px; overflow:hidden; }
+    .hl-pop-vazia { font-size:12px; color:#666; margin:6px 0; font-style:italic; }
+    .hl-pop-btns  { display:flex; gap:8px; margin-top:10px; }
+    .hl-pop-btn   { flex:1; padding:6px; border:none; border-radius:6px; font-size:12px; cursor:pointer; font-weight:bold; }
+    .hl-pop-abrir { background:#ffd700; color:#111; }
+    .hl-pop-abrir:hover { background:#ffe44d; }
+    .hl-pop-del   { background:#3a1a1a; color:#f88; border:1px solid #622; }
+    .hl-pop-del:hover { background:#4a2020; }
 
-    /* Item de highlight no drawer */
-    .hl-item {
-      background: #222; border-radius: 8px; padding: 10px 12px;
-      margin-bottom: 8px; cursor: pointer; display: flex; align-items: flex-start; gap: 8px;
-    }
-    .hl-item:hover { background: #2a2a2a; }
-    .hl-item-cor { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
-    .hl-item-info { flex: 1; min-width: 0; }
-    .hl-item-pag  { font-size: 11px; color: #888; margin-bottom: 3px; }
-    .hl-item-txt  { font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Item no drawer */
+    .hl-item { background:#222; border-radius:8px; padding:10px 12px; margin-bottom:8px;
+                cursor:pointer; display:flex; align-items:center; gap:8px; }
+    .hl-item:hover { background:#2a2a2a; }
+    .hl-item-cor  { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+    .hl-item-info { flex:1; min-width:0; }
+    .hl-item-pag  { font-size:11px; color:#888; margin-bottom:2px; }
+    .hl-item-nota { font-size:12px; color:#ccc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
     @media (max-width: 600px) {
       .topo-titulo { display: none; }
@@ -558,75 +543,37 @@
       const scale    = window.innerWidth < 600 ? 1.0 : 1.5
       const viewport = page.getViewport({ scale })
 
-      // Wrapper: posição relativa para empilhar canvas + textLayer + SVG
+      // Wrapper relativo — empilha canvas PDF + canvas de desenho
       const wrap = document.createElement("div")
       wrap.style.cssText = "position:relative;width:100%;display:block;line-height:0;"
 
-      // Canvas do PDF
-      const canvas = document.createElement("canvas")
-      const ctx    = canvas.getContext("2d")
-      canvas.height = viewport.height
-      canvas.width  = viewport.width
-      canvas.style.cssText = "display:block;width:100%;border-radius:5px;"
-      wrap.appendChild(canvas)
+      // Canvas do PDF (apenas leitura)
+      const pdfCanvas = document.createElement("canvas")
+      const ctx       = pdfCanvas.getContext("2d")
+      pdfCanvas.height = viewport.height
+      pdfCanvas.width  = viewport.width
+      pdfCanvas.style.cssText = "display:block;width:100%;border-radius:5px;"
+      wrap.appendChild(pdfCanvas)
 
-      // SVG overlay — mesmos viewBox do viewport PDF
-      const svg = document.createElementNS("http://www.w3.org/2000/svg","svg")
-      svg.setAttribute("class","hl-svg")
-      svg.setAttribute("viewBox",`0 0 ${viewport.width} ${viewport.height}`)
-      svg.setAttribute("preserveAspectRatio","none")
-      svg.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"
-      wrap.appendChild(svg)
-
-      // textLayer — ocupa exatamente o mesmo espaço que o canvas renderizado
-      // Usamos width/height 100% e deixamos o PDF.js posicionar os spans
-      // internamente via transform — mas a div container acompanha o canvas
-      const textDiv = document.createElement("div")
-      textDiv.className = "textLayer"
-      // Dimensões em px do PDF; CSS escala para 100% via transform abaixo
-      textDiv.style.cssText = [
-        "position:absolute;top:0;left:0;overflow:hidden;",
-        `width:${viewport.width}px;height:${viewport.height}px;`,
-        "transform-origin:top left;"
-      ].join("")
-      wrap.appendChild(textDiv)
+      // Canvas de desenho — sobreposto, transparente, mesmas dimensões
+      const dc = document.createElement("canvas")
+      dc.className   = "draw-canvas"
+      dc.width       = viewport.width
+      dc.height      = viewport.height
+      dc.dataset.pag = num
+      wrap.appendChild(dc)
 
       container.innerHTML = ""
       container.appendChild(wrap)
 
-      // Renderizar canvas
-      page.render({ canvasContext: ctx, viewport }).promise.then(() => {
-        // Agora o canvas tem tamanho real no DOM — calcular escala correta
-        const displayW = canvas.getBoundingClientRect().width
-        const s = displayW / viewport.width
-        textDiv.style.transform = `scale(${s})`
-      })
+      // Renderizar PDF
+      page.render({ canvasContext: ctx, viewport })
 
-      // Renderizar textLayer (PDF.js 3.x)
-      page.getTextContent().then(tc => {
-        const task = pdfjsLib.renderTextLayer({
-          textContentSource: tc,
-          container:         textDiv,
-          viewport:          viewport,
-          textDivs:          []
-        })
-        // Reajustar escala após textLayer renderizar
-        if (task && task.promise) {
-          task.promise.then(() => {
-            const displayW = canvas.getBoundingClientRect().width
-            if (displayW > 0) {
-              textDiv.style.transform = `scale(${displayW / viewport.width})`
-            }
-          }).catch(()=>{})
-        }
-      })
+      // Restaurar marcações salvas neste canvas
+      restaurarDesenho(num, dc)
 
-      // Desenhar highlights salvos
-      redesenharHighlights(num, svg, viewport)
-
-      // Capturar seleção ao soltar mouse/dedo
-      wrap.addEventListener("mouseup",  (e) => setTimeout(()=>capturarSelecao(e, num, canvas, svg, viewport), 0))
-      wrap.addEventListener("touchend", (e) => setTimeout(()=>capturarSelecao(e, num, canvas, svg, viewport), 0))
+      // Eventos de desenho
+      iniciarDesenho(dc, num)
 
       // Badge de anotação
       if (logado) atualizarBadge(num, container)
@@ -969,18 +916,20 @@
   })
 
   // ─────────────────────────────────────────────
-  // ── HIGHLIGHTS DE TEXTO ──
+  // ── MARCAÇÕES COM MARCA-TEXTO (canvas livre) ──
   // ─────────────────────────────────────────────
 
-  // highlights: { id: { pagina, cor, rects:[{x,y,w,h}], nota, textoSel } }
+  // Estrutura: { id: { pagina, cor, nota, imgData } }
+  // imgData = dataURL do canvas de desenho da página inteira
   let highlights     = {}
-  let corSelecionada = "#facc15"   // amarelo padrão
+  let corSelecionada = "#facc15"
   let modoHL         = false
-  let hlAtualId      = null        // id do highlight no popover aberto
+  let _desenhandoId  = null   // id do highlight em andamento (traço atual)
+  let _popoverHlId   = null
 
   function chaveHL() { return "sl_hl_" + btoa(pdfUrl).slice(0, 40) }
 
-  // ── Carregar highlights ──
+  // ── Carregar marcações ──
   async function carregarMarcacoes() {
     try { highlights = JSON.parse(localStorage.getItem(chaveHL()) || "{}") } catch { highlights = {} }
 
@@ -988,156 +937,173 @@
       try {
         const { data } = await _supa
           .from("highlights")
-          .select("*")
+          .select("hl_id, pagina, cor, nota, img_data")
           .eq("user_id", userId)
           .eq("livro_url", pdfUrl)
         if (data && data.length) {
           data.forEach(h => {
-            highlights[h.hl_id] = {
-              pagina: h.pagina, cor: h.cor,
-              rects: h.rects, nota: h.nota || "", textoSel: h.texto_sel || ""
-            }
+            highlights[h.hl_id] = { pagina: h.pagina, cor: h.cor, nota: h.nota || "", imgData: h.img_data || "" }
           })
           localStorage.setItem(chaveHL(), JSON.stringify(highlights))
         }
       } catch {}
     }
+
+    // Restaurar canvas de páginas já renderizadas
+    viewer.querySelectorAll(".draw-canvas").forEach(dc => {
+      restaurarDesenho(parseInt(dc.dataset.pag), dc)
+    })
     renderizarListaMarcacoes()
-    // Redesenhar nas páginas já renderizadas
-    viewer.querySelectorAll(".page").forEach(p => {
-      const num = parseInt(p.dataset.page)
-      const svg = p.querySelector(".hl-svg")
-      if (svg) {
-        const vp = { width: svg.viewBox.baseVal.width, height: svg.viewBox.baseVal.height }
-        redesenharHighlights(num, svg, vp)
+  }
+
+  // ── Restaurar desenho salvo num canvas ──
+  function restaurarDesenho(num, dc) {
+    const ctx = dc.getContext("2d")
+    ctx.clearRect(0, 0, dc.width, dc.height)
+    // Pode haver múltiplos highlights na mesma página — renderizar todos
+    Object.values(highlights).forEach(h => {
+      if (h.pagina === num && h.imgData) {
+        const img = new Image()
+        img.onload = () => ctx.drawImage(img, 0, 0)
+        img.src = h.imgData
       }
     })
   }
 
   // ── Persistir highlight ──
-  async function persistirHL(id, dados) {
-    highlights[id] = dados
+  async function persistirHL(id) {
     try { localStorage.setItem(chaveHL(), JSON.stringify(highlights)) } catch {}
     if (!logado || !userId) return
+    const h = highlights[id]
+    if (!h) return
     try {
-      if (dados) {
-        await _supa.from("highlights").upsert({
-          hl_id: id, user_id: userId, livro_url: pdfUrl,
-          pagina: dados.pagina, cor: dados.cor,
-          rects: dados.rects, nota: dados.nota, texto_sel: dados.textoSel
-        }, { onConflict: "hl_id" })
-      } else {
-        await _supa.from("highlights").delete().eq("hl_id", id)
-      }
+      await _supa.from("highlights").upsert({
+        hl_id: id, user_id: userId, livro_url: pdfUrl,
+        pagina: h.pagina, cor: h.cor, nota: h.nota, img_data: h.imgData
+      }, { onConflict: "hl_id" })
     } catch {}
   }
 
   async function deletarHL(id) {
+    const h = highlights[id]
     delete highlights[id]
     try { localStorage.setItem(chaveHL(), JSON.stringify(highlights)) } catch {}
     if (logado && userId) {
       try { await _supa.from("highlights").delete().eq("hl_id", id) } catch {}
     }
-  }
-
-  // ── Capturar seleção de texto e criar highlight ──
-  function capturarSelecao(e, num, canvas, svg, viewport) {
-    if (!modoHL) return
-    if (corSelecionada === "") return   // modo apagar — não cria
-
-    const sel = window.getSelection()
-    if (!sel || sel.isCollapsed || !sel.rangeCount) return
-
-    const range = sel.getRangeAt(0)
-    const rects = Array.from(range.getClientRects())
-    if (!rects.length) return
-
-    // Usar o canvas como referência — ele tem as dimensões reais exibidas
-    // sem nenhuma transformação CSS aplicada
-    const canvasRect = canvas.getBoundingClientRect()
-    const scaleX = viewport.width  / canvasRect.width   // px tela → px PDF
-    const scaleY = viewport.height / canvasRect.height
-
-    // Coords relativas ao PDF (0–1)
-    const hlRects = rects.map(r => ({
-      x: (r.left - canvasRect.left) * scaleX / viewport.width,
-      y: (r.top  - canvasRect.top)  * scaleY / viewport.height,
-      w: r.width  * scaleX / viewport.width,
-      h: r.height * scaleY / viewport.height
-    })).filter(r => r.w > 0.001 && r.h > 0.001)
-
-    if (!hlRects.length) return
-
-    const textoSel = sel.toString().trim().slice(0, 200)
-    sel.removeAllRanges()
-
-    const id = "hl_" + Date.now() + "_" + Math.random().toString(36).slice(2,6)
-    const dados = { pagina: num, cor: corSelecionada, rects: hlRects, nota: "", textoSel }
-    persistirHL(id, dados)
-    adicionarSVGRect(id, dados, svg, viewport)
+    // Redesenhar canvas da página (sem o highlight deletado)
+    if (h) {
+      const dc = viewer.querySelector(`.draw-canvas[data-pag="${h.pagina}"]`)
+      if (dc) restaurarDesenho(h.pagina, dc)
+    }
     renderizarListaMarcacoes()
   }
 
-  // ── Desenhar retângulos SVG ──
-  function adicionarSVGRect(id, dados, svg, viewport) {
-    dados.rects.forEach((r, i) => {
-      const rect = document.createElementNS("http://www.w3.org/2000/svg","rect")
-      // rects são coords relativas (0–1) → converter para px do viewport
-      rect.setAttribute("x",      (r.x * viewport.width).toFixed(2))
-      rect.setAttribute("y",      (r.y * viewport.height).toFixed(2))
-      rect.setAttribute("width",  (r.w * viewport.width).toFixed(2))
-      rect.setAttribute("height", (r.h * viewport.height).toFixed(2))
-      rect.setAttribute("fill",   dados.cor)
-      rect.setAttribute("opacity","0.4")
-      rect.setAttribute("class",  "hl-rect")
-      rect.dataset.hlId = id
-      rect.addEventListener("click",     (e) => { e.stopPropagation(); abrirPopover(e, id) })
-      rect.addEventListener("touchstart",(e) => { e.stopPropagation(); abrirPopover(e, id) }, {passive:true})
-      svg.appendChild(rect)
-    })
-  }
+  // ── Iniciar eventos de desenho num canvas ──
+  function iniciarDesenho(dc, num) {
+    let desenhando = false
+    let tracos = []   // pontos do traço atual
 
-  function redesenharHighlights(num, svg, viewport) {
-    // Limpar SVG
-    while (svg.firstChild) svg.removeChild(svg.firstChild)
-    Object.entries(highlights).forEach(([id, dados]) => {
-      if (dados.pagina === num) adicionarSVGRect(id, dados, svg, viewport)
+    function ptRelativo(e) {
+      const r = dc.getBoundingClientRect()
+      const src = e.touches ? e.touches[0] : e
+      return {
+        x: (src.clientX - r.left) * (dc.width  / r.width),
+        y: (src.clientY - r.top)  * (dc.height / r.height)
+      }
+    }
+
+    function iniciar(e) {
+      if (!modoHL) return
+      if (corSelecionada === "") return
+      e.preventDefault()
+      desenhando = true
+      tracos = []
+      const pt = ptRelativo(e)
+      tracos.push(pt)
+    }
+
+    function mover(e) {
+      if (!desenhando || !modoHL) return
+      e.preventDefault()
+      const pt  = ptRelativo(e)
+      const ctx = dc.getContext("2d")
+
+      // Desenhar segmento do traço com cor semitransparente
+      ctx.globalCompositeOperation = "source-over"
+      ctx.strokeStyle = corSelecionada
+      ctx.lineWidth   = 18
+      ctx.lineCap     = "round"
+      ctx.lineJoin    = "round"
+      ctx.globalAlpha = 0.35
+
+      const prev = tracos[tracos.length - 1]
+      ctx.beginPath()
+      ctx.moveTo(prev.x, prev.y)
+      ctx.lineTo(pt.x, pt.y)
+      ctx.stroke()
+      ctx.globalAlpha = 1
+
+      tracos.push(pt)
+    }
+
+    function terminar(e) {
+      if (!desenhando || !modoHL) return
+      desenhando = false
+      if (tracos.length < 2) return
+
+      // Salvar estado atual do canvas como highlight desta página
+      const id     = "hl_" + num + "_" + Date.now()
+      const imgData = dc.toDataURL("image/png")
+      highlights[id] = { pagina: num, cor: corSelecionada, nota: "", imgData }
+      persistirHL(id)
+      renderizarListaMarcacoes()
+      tracos = []
+    }
+
+    dc.addEventListener("mousedown",  iniciar,   { passive: false })
+    dc.addEventListener("mousemove",  mover,     { passive: false })
+    dc.addEventListener("mouseup",    terminar)
+    dc.addEventListener("mouseleave", terminar)
+    dc.addEventListener("touchstart", iniciar,   { passive: false })
+    dc.addEventListener("touchmove",  mover,     { passive: false })
+    dc.addEventListener("touchend",   terminar)
+
+    // Clique simples sem arrastar = abrir popover do último highlight desta página
+    dc.addEventListener("click", (e) => {
+      if (!modoHL || corSelecionada !== "") return
+      // Modo apagar: mostrar popover para deletar
+      const hlsPagina = Object.entries(highlights).filter(([,h]) => h.pagina === num)
+      if (!hlsPagina.length) return
+      // Pega o mais recente
+      const [id] = hlsPagina[hlsPagina.length - 1]
+      abrirPopover(e, id)
     })
   }
 
   // ── Popover ──
-  let _popoverHlId = null
   function abrirPopover(e, id) {
     _popoverHlId = id
-    const dados = highlights[id]
-    if (!dados) return
-
+    const h   = highlights[id]
+    if (!h) return
     const pop = document.getElementById("hl-popover")
-    document.getElementById("hl-pop-cor").style.background = dados.cor
-    document.getElementById("hl-pop-pag").textContent = `Página ${dados.pagina}`
-
+    document.getElementById("hl-pop-cor").style.background = h.cor
+    document.getElementById("hl-pop-pag").textContent      = `Página ${h.pagina}`
     const notaEl = document.getElementById("hl-pop-nota")
-    if (dados.nota && dados.nota.trim()) {
-      notaEl.className = "hl-pop-texto"
-      notaEl.textContent = dados.nota.length > 120 ? dados.nota.slice(0,120) + "…" : dados.nota
-    } else if (dados.textoSel) {
-      notaEl.className = "hl-pop-vazia"
-      notaEl.textContent = `"${dados.textoSel.slice(0,80)}${dados.textoSel.length>80?"…":""}"`
+    if (h.nota && h.nota.trim()) {
+      notaEl.className   = "hl-pop-texto"
+      notaEl.textContent = h.nota.length > 120 ? h.nota.slice(0,120) + "…" : h.nota
     } else {
-      notaEl.className = "hl-pop-vazia"
-      notaEl.textContent = "Sem nota vinculada"
+      notaEl.className   = "hl-pop-vazia"
+      notaEl.textContent = "Sem nota vinculada. Clique em 'Ver nota'."
     }
-
-    // Posicionar perto do clique
-    const x = (e.touches ? e.touches[0].clientX : e.clientX)
-    const y = (e.touches ? e.touches[0].clientY : e.clientY)
+    const x = e.touches ? e.touches[0].clientX : e.clientX
+    const y = e.touches ? e.touches[0].clientY : e.clientY
     pop.style.left = Math.min(x + 8, window.innerWidth  - 300) + "px"
     pop.style.top  = Math.min(y + 8, window.innerHeight - 180) + "px"
     pop.classList.add("visivel")
-
-    // Fechar ao clicar fora
     setTimeout(() => {
-      document.addEventListener("click", fecharPopoverFora, { once: true })
+      document.addEventListener("click",      fecharPopoverFora, { once: true })
       document.addEventListener("touchstart", fecharPopoverFora, { once: true })
     }, 10)
   }
@@ -1149,41 +1115,23 @@
 
   window.abrirNotaDoHL = function() {
     if (!_popoverHlId) return
-    const dados = highlights[_popoverHlId]
-    if (!dados) return
+    const h = highlights[_popoverHlId]
+    if (!h) return
     document.getElementById("hl-popover").classList.remove("visivel")
     abrirDrawer()
     trocarAbaDrawer("notas")
-    document.getElementById("input-pagina").value = dados.pagina
-    abrirDrawerNaPagina(dados.pagina)
-    // Preenche o texto da nota se existir
-    if (dados.nota) document.getElementById("nota-texto").value = dados.nota
-    // Vincular: quando salvar, atualiza nota do highlight
+    abrirDrawerNaPagina(h.pagina)
+    if (h.nota) document.getElementById("nota-texto").value = h.nota
     window._hlVinculadoId = _popoverHlId
   }
 
   window.deletarHLAtual = async function() {
     if (!_popoverHlId) return
-    const id = _popoverHlId
-    const dados = highlights[id]
     document.getElementById("hl-popover").classList.remove("visivel")
-
-    await deletarHL(id)
-
-    // Remover SVG
-    if (dados) {
-      const pageEl = viewer.querySelector(`.page[data-page="${dados.pagina}"]`)
-      if (pageEl) {
-        const svg = pageEl.querySelector(".hl-svg")
-        if (svg) {
-          svg.querySelectorAll(`[data-hl-id="${id}"]`).forEach(r => r.remove())
-        }
-      }
-    }
-    renderizarListaMarcacoes()
+    await deletarHL(_popoverHlId)
   }
 
-  // ── Toggle modo highlight ──
+  // ── Toggle modo destaque ──
   function toggleModoHL() {
     modoHL = !modoHL
     const btn  = document.getElementById("btn-hl")
@@ -1192,7 +1140,6 @@
     wrap.style.display = modoHL ? "flex" : "none"
     viewer.querySelectorAll(".page").forEach(p => p.classList.toggle("modoHL", modoHL))
     if (modoHL) {
-      // Selecionar cor amarela por padrão
       const first = document.querySelector(".cor-btn[data-cor='#facc15']")
       if (first) selecionarCor(first, "#facc15")
     }
@@ -1202,67 +1149,51 @@
     corSelecionada = cor
     document.querySelectorAll(".cor-btn").forEach(b => b.classList.remove("ativa"))
     el.classList.add("ativa")
-    if (cor === "") {
-      // Modo apagar: clicar num highlight o deleta
-    }
   }
 
   // ── Lista no drawer ──
   function renderizarListaMarcacoes() {
     const lista = document.getElementById("lista-marcacoes")
+    if (!lista) return
     const itens = Object.entries(highlights)
-      .filter(([,d]) => d && d.pagina)
+      .filter(([,h]) => h && h.pagina)
       .sort((a,b) => a[1].pagina - b[1].pagina)
 
     if (!itens.length) {
-      lista.innerHTML = '<p class="notas-vazia">Nenhum destaque ainda.<br>Ative 🖍 Destacar e selecione texto.</p>'
+      lista.innerHTML = '<p class="notas-vazia">Nenhum destaque ainda.<br>Ative 🖍 Destacar e pinte sobre o texto.</p>'
       return
     }
-    lista.innerHTML = itens.map(([id, d]) => `
+    lista.innerHTML = itens.map(([id, h]) => `
       <div class="hl-item" onclick="irParaHL('${id}')">
-        <div class="hl-item-cor" style="background:${d.cor}"></div>
+        <div class="hl-item-cor" style="background:${h.cor}"></div>
         <div class="hl-item-info">
-          <div class="hl-item-pag">Página ${d.pagina}</div>
-          <div class="hl-item-txt">${escapeHtml(d.textoSel || d.nota || "(sem texto)")}</div>
+          <div class="hl-item-pag">Página ${h.pagina}</div>
+          <div class="hl-item-nota">${escapeHtml(h.nota || "(sem nota)")}</div>
         </div>
-        <button onclick="event.stopPropagation();deletarHLItem('${id}')"
-          style="background:none;border:none;color:#666;cursor:pointer;font-size:13px;flex-shrink:0;">✕</button>
+        <button onclick="event.stopPropagation();deletarHL('${id}')"
+          style="background:none;border:none;color:#666;cursor:pointer;font-size:14px;flex-shrink:0;" title="Remover">✕</button>
       </div>
     `).join("")
   }
 
   function irParaHL(id) {
-    const d = highlights[id]
-    if (!d) return
-    document.getElementById("input-pagina").value = d.pagina
+    const h = highlights[id]
+    if (!h) return
+    document.getElementById("input-pagina").value = h.pagina
     irParaPagina()
   }
 
-  async function deletarHLItem(id) {
-    const dados = highlights[id]
-    await deletarHL(id)
-    if (dados) {
-      const pageEl = viewer.querySelector(`.page[data-page="${dados.pagina}"]`)
-      if (pageEl) {
-        pageEl.querySelector(".hl-svg")?.querySelectorAll(`[data-hl-id="${id}"]`).forEach(r=>r.remove())
-      }
-    }
-    renderizarListaMarcacoes()
-  }
-
-  // ── Salvar nota vincula ao highlight ──
-  const _salvarNotaOriginal = salvarNota
-  // Após salvar nota, atualiza nota no highlight vinculado se houver
+  // Ao salvar nota, vincula ao highlight se houver
+  const _salvarNotaOrig = salvarNota
   async function salvarNota() {
-    await _salvarNotaOriginal()
+    await _salvarNotaOrig()
     if (window._hlVinculadoId && highlights[window._hlVinculadoId]) {
-      const texto = document.getElementById("nota-texto").value.trim()
-      highlights[window._hlVinculadoId].nota = texto
-      await persistirHL(window._hlVinculadoId, highlights[window._hlVinculadoId])
+      highlights[window._hlVinculadoId].nota = document.getElementById("nota-texto").value.trim()
+      await persistirHL(window._hlVinculadoId)
       window._hlVinculadoId = null
+      renderizarListaMarcacoes()
     }
   }
-
   // ── Trocar aba do drawer ──
   function trocarAbaDrawer(aba) {
     const elNotas     = document.getElementById("drawer-logado")
