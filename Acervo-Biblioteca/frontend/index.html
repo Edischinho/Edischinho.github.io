@@ -19,7 +19,7 @@
   <h1>Bem-vindo</h1>
   <div class="menu" style="display:flex; gap:15px; justify-content:center; margin-top:30px;">
     <button onclick="location.href='livraria.html'">📚 Livraria</button>
-    <button onclick="location.href='login.html'">🔒 Admin</button>
+    <button onclick="location.href='login.html?from=admin'">🔒 Admin</button>
   </div>
 </div>
 
@@ -58,7 +58,7 @@
       if (m) m.style.display = "none"
     })
   } else {
-    wrap.innerHTML = `<button onclick="location.href='login.html'" style="background:#fff;color:#111;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:bold;cursor:pointer;">Entrar</button>`
+    wrap.innerHTML = `<button onclick="location.href='login-admin.html'" style="background:#fff;color:#111;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:bold;cursor:pointer;">Entrar</button>`
   }
 
   function sair() {
