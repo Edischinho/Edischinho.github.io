@@ -434,7 +434,7 @@
         }
 
         // Restaurar última página lida
-        const chave      = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
+        const chave      = "sl_pagina_" + hashUrl(pdfUrl)
         const localPag   = parseInt(localStorage.getItem(chave)) || 0
 
         async function restaurarProgresso() {
@@ -444,7 +444,7 @@
           if (logado && userId) {
             try {
               const headers = await jwtHeader()
-              const res  = await fetch(`${API}/progresso?livro_url=${encodeURIComponent(pdfUrl)}`, { headers })
+              const res  = await fetch(`${API}/progresso?livro_url=${encodeURIComponent(pdfUrlDecoded)}`, { headers })
               const data = await res.json()
               if (data && data.pagina > pagFinal) pagFinal = data.pagina
             } catch {}
@@ -511,7 +511,7 @@
     _ultimaPaginaSalva = pag
 
     // Sempre salva no localStorage (instantâneo, funciona offline)
-    const chave = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
+    const chave = "sl_pagina_" + hashUrl(pdfUrl)
     localStorage.setItem(chave, pag)
 
     // Sincroniza com backend (JWT) se logado
@@ -523,7 +523,7 @@
           await fetch(`${API}/progresso`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...headers },
-            body: JSON.stringify({ livro_url: pdfUrl, pagina: pag })
+            body: JSON.stringify({ livro_url: pdfUrlDecoded, pagina: pag })
           })
         } catch {}
       }, 1000)
@@ -659,16 +659,27 @@
   // ── ANOTAÇÕES — Supabase (logado) ou localStorage (offline) ──
   // ─────────────────────────────────────────────
 
-  function chaveLocal() {
-    return "sl_notas_" + btoa(pdfUrl).slice(0, 40)
+  // Hash simples mas único — soma dos char codes da URL decodificada completa
+  function hashUrl(url) {
+    const s = decodeURIComponent(url)
+    let h = 0
+    for (let i = 0; i < s.length; i++) {
+      h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
+    }
+    return (h >>> 0).toString(36)  // unsigned, base36
   }
+
+  function chaveLocal()  { return "sl_notas_" + hashUrl(pdfUrl) }
+
+  // URL decodificada — usada como identificador único no backend
+  const pdfUrlDecoded = decodeURIComponent(pdfUrl)
 
   // ── Carrega: backend (JWT) se logado, localStorage se não ──
   async function carregarAnotacoes() {
     if (logado && userId) {
       try {
         const headers = await jwtHeader()
-        const res  = await fetch(`${API}/anotacoes?livro_url=${encodeURIComponent(pdfUrl)}`, { headers })
+        const res  = await fetch(`${API}/anotacoes?livro_url=${encodeURIComponent(pdfUrlDecoded)}`, { headers })
         if (!res.ok) throw new Error()
         anotacoes = await res.json()
         localStorage.setItem(chaveLocal(), JSON.stringify(anotacoes))
@@ -777,7 +788,7 @@
         await fetch(`${API}/anotacoes`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...headers },
-          body: JSON.stringify({ livro_url: pdfUrl, pagina: paginaNoDrawer, texto })
+          body: JSON.stringify({ livro_url: pdfUrlDecoded, pagina: paginaNoDrawer, texto })
         })
       } catch {
         console.warn("Backend offline, anotação salva só localmente.")
@@ -931,7 +942,7 @@
   let _desenhandoId  = null   // id do highlight em andamento (traço atual)
   let _popoverHlId   = null
 
-  function chaveHL() { return "sl_hl_" + btoa(pdfUrl).slice(0, 40) }
+  function chaveHL()   { return "sl_hl_"    + hashUrl(pdfUrl) }
 
   // ── Carregar marcações ──
   async function carregarMarcacoes() {
@@ -940,7 +951,7 @@
     if (logado && userId) {
       try {
         const headers = await jwtHeader()
-        const res  = await fetch(`${API}/highlights?livro_url=${encodeURIComponent(pdfUrl)}`, { headers })
+        const res  = await fetch(`${API}/highlights?livro_url=${encodeURIComponent(pdfUrlDecoded)}`, { headers })
         const data = await res.json()
         if (Array.isArray(data) && data.length) {
           data.forEach(h => {
@@ -983,7 +994,7 @@
       await fetch(`${API}/highlights`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ hl_id: id, livro_url: pdfUrl, pagina: h.pagina, cor: h.cor, nota: h.nota, img_data: h.imgData })
+        body: JSON.stringify({ hl_id: id, livro_url: pdfUrlDecoded, pagina: h.pagina, cor: h.cor, nota: h.nota, img_data: h.imgData })
       })
     } catch {}
   }
