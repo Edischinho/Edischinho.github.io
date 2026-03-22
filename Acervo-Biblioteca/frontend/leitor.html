@@ -367,6 +367,13 @@
 <script>
   const API    = "https://edischinho-github-io.onrender.com"
   const params = new URLSearchParams(window.location.search)
+
+  // Pega o JWT da sessão Supabase para autenticar no backend
+  async function jwtHeader() {
+    const { data } = await _supa.auth.getSession()
+    const token = data?.session?.access_token || ""
+    return token ? { "Authorization": "Bearer " + token } : {}
+  }
   const pdfUrl = params.get("pdf")
   const viewer = document.getElementById("viewer")
   let pdfDoc   = null
@@ -436,15 +443,10 @@
           // Se logado, busca do Supabase (pode ser mais recente que o local)
           if (logado && userId) {
             try {
-              const { data } = await _supa
-                .from("progresso")
-                .select("pagina")
-                .eq("user_id", userId)
-                .eq("livro_url", pdfUrl)
-                .single()
-              if (data && data.pagina > pagFinal) {
-                pagFinal = data.pagina
-              }
+              const headers = await jwtHeader()
+              const res  = await fetch(`${API}/progresso?livro_url=${encodeURIComponent(pdfUrl)}`, { headers })
+              const data = await res.json()
+              if (data && data.pagina > pagFinal) pagFinal = data.pagina
             } catch {}
           }
 
@@ -512,17 +514,19 @@
     const chave = "sl_pagina_" + btoa(pdfUrl).slice(0, 40)
     localStorage.setItem(chave, pag)
 
-    // Salva no Supabase se logado (sincroniza entre dispositivos)
+    // Sincroniza com backend (JWT) se logado
     if (logado && userId) {
       if (_saveTimer) clearTimeout(_saveTimer)
       _saveTimer = setTimeout(async () => {
         try {
-          await _supa.from("progresso").upsert(
-            { user_id: userId, livro_url: pdfUrl, pagina: pag, updated_at: new Date().toISOString() },
-            { onConflict: "user_id,livro_url" }
-          )
+          const headers = await jwtHeader()
+          await fetch(`${API}/progresso`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...headers },
+            body: JSON.stringify({ livro_url: pdfUrl, pagina: pag })
+          })
         } catch {}
-      }, 1000) // debounce: só envia 1s após parar de rolar
+      }, 1000)
     }
   }
 
@@ -659,17 +663,16 @@
     return "sl_notas_" + btoa(pdfUrl).slice(0, 40)
   }
 
-  // ── Carrega: Supabase se logado, localStorage se não ──
+  // ── Carrega: backend (JWT) se logado, localStorage se não ──
   async function carregarAnotacoes() {
     if (logado && userId) {
       try {
-        const res  = await fetch(`${API}/anotacoes?user_id=${encodeURIComponent(userId)}&livro_url=${encodeURIComponent(pdfUrl)}`)
+        const headers = await jwtHeader()
+        const res  = await fetch(`${API}/anotacoes?livro_url=${encodeURIComponent(pdfUrl)}`, { headers })
         if (!res.ok) throw new Error()
         anotacoes = await res.json()
-        // Sincroniza localStorage com o que veio do servidor
         localStorage.setItem(chaveLocal(), JSON.stringify(anotacoes))
       } catch {
-        // Fallback: usa cache local se o servidor falhar
         try { anotacoes = JSON.parse(localStorage.getItem(chaveLocal()) || "{}") }
         catch { anotacoes = {} }
       }
@@ -767,22 +770,17 @@
     // 2. Grava no localStorage imediatamente (resposta instantânea)
     try { localStorage.setItem(chaveLocal(), JSON.stringify(anotacoes)) } catch {}
 
-    // 3. Sincroniza com Supabase em background se logado
+    // 3. Sincroniza com backend (JWT) em background se logado
     if (logado && userId) {
       try {
+        const headers = await jwtHeader()
         await fetch(`${API}/anotacoes`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id:   userId,
-            livro_url: pdfUrl,
-            pagina:    paginaNoDrawer,
-            texto:     texto
-          })
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({ livro_url: pdfUrl, pagina: paginaNoDrawer, texto })
         })
       } catch {
-        // Silencioso — o localStorage já garantiu a persistência local
-        console.warn("Supabase offline, anotação salva só localmente.")
+        console.warn("Backend offline, anotação salva só localmente.")
       }
     }
 
@@ -941,12 +939,10 @@
 
     if (logado && userId) {
       try {
-        const { data } = await _supa
-          .from("highlights")
-          .select("hl_id, pagina, cor, nota, img_data")
-          .eq("user_id", userId)
-          .eq("livro_url", pdfUrl)
-        if (data && data.length) {
+        const headers = await jwtHeader()
+        const res  = await fetch(`${API}/highlights?livro_url=${encodeURIComponent(pdfUrl)}`, { headers })
+        const data = await res.json()
+        if (Array.isArray(data) && data.length) {
           data.forEach(h => {
             highlights[h.hl_id] = { pagina: h.pagina, cor: h.cor, nota: h.nota || "", imgData: h.img_data || "" }
           })
@@ -983,10 +979,12 @@
     const h = highlights[id]
     if (!h) return
     try {
-      await _supa.from("highlights").upsert({
-        hl_id: id, user_id: userId, livro_url: pdfUrl,
-        pagina: h.pagina, cor: h.cor, nota: h.nota, img_data: h.imgData
-      }, { onConflict: "hl_id" })
+      const headers = await jwtHeader()
+      await fetch(`${API}/highlights`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ hl_id: id, livro_url: pdfUrl, pagina: h.pagina, cor: h.cor, nota: h.nota, img_data: h.imgData })
+      })
     } catch {}
   }
 
@@ -995,7 +993,10 @@
     delete highlights[id]
     try { localStorage.setItem(chaveHL(), JSON.stringify(highlights)) } catch {}
     if (logado && userId) {
-      try { await _supa.from("highlights").delete().eq("hl_id", id) } catch {}
+      try {
+        const headers = await jwtHeader()
+        await fetch(`${API}/highlights/${encodeURIComponent(id)}`, { method: "DELETE", headers })
+      } catch {}
     }
     // Redesenhar canvas da página (sem o highlight deletado)
     if (h) {
