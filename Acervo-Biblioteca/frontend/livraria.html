@@ -31,6 +31,7 @@
       .busca-hint { color: #666; }
     }
   </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -173,6 +174,11 @@ carregarLivros()
 <script>
 (function() {
   const wrap     = document.getElementById("btn-conta-wrap")
+  // Conta via Supabase SDK
+  const _s = supabase.createClient(
+    "https://iwggwgepwbrvmmrgsrvr.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3Z2d3Z2Vwd2Jydm1tcmdzcnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mzc4ODcsImV4cCI6MjA4OTExMzg4N30.BFaHUNavW7VOApg35r01SHsfjgYKUnhlT7YSADF9H6U"
+  )
   const role     = localStorage.getItem("sl_role")
   const username = localStorage.getItem("sl_username")
   const logado   = !!role
@@ -202,7 +208,7 @@ carregarLivros()
   }
 
   function sair() {
-    ["sl_role","sl_username","sl_user_id"].forEach(k => localStorage.removeItem(k))
+    _s.auth.signOut(); ["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
     location.reload()
   }
 })()
