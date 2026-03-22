@@ -5,47 +5,335 @@
   <link rel="icon" type="image/x-icon" href="IconeSH.ico">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Stronghold Library</title>
-  <link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #000;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Canvas de partículas ── */
+    #bg-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ── Header ── */
+    header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,215,0,0.15);
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      color: #ffd700;
+      text-shadow: 0 0 20px rgba(255,215,0,0.5);
+    }
+
+    /* ── Centro ── */
+    .centro {
+      position: relative;
+      z-index: 10;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      text-align: center;
+    }
+
+    .titulo-principal {
+      font-size: clamp(2.2rem, 6vw, 4.5rem);
+      font-weight: bold;
+      line-height: 1.1;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #ffd700 0%, #ffe44d 40%, #fff8dc 70%, #ffd700 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 30px rgba(255,215,0,0.4));
+      animation: pulseGlow 3s ease-in-out infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { filter: drop-shadow(0 0 20px rgba(255,215,0,0.3)); }
+      50%       { filter: drop-shadow(0 0 50px rgba(255,215,0,0.7)); }
+    }
+
+    .subtitulo {
+      font-size: clamp(0.9rem, 2vw, 1.1rem);
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 56px;
+    }
+
+    /* ── Botões ── */
+    .botoes {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 20px 28px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 16px;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      min-width: 120px;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    .btn-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 0%, rgba(255,215,0,0.12), transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .btn-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255,215,0,0.7);
+      background: rgba(255,215,0,0.06);
+      box-shadow: 0 8px 32px rgba(255,215,0,0.2), 0 0 0 1px rgba(255,215,0,0.15);
+    }
+
+    .btn-card:hover::before { opacity: 1; }
+
+    .btn-card:active { transform: translateY(-1px); }
+
+    .btn-icon {
+      font-size: 28px;
+      line-height: 1;
+      filter: drop-shadow(0 0 8px rgba(255,215,0,0.4));
+    }
+
+    .btn-label {
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* ── Linha separadora decorativa ── */
+    .linha {
+      width: 160px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,215,0,0.5), transparent);
+      margin: 40px auto 0;
+    }
+
+    /* ── Footer ── */
+    footer {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 1px;
+    }
+
+    /* ── Conta (header direito) ── */
+    #btn-conta-wrap button {
+      background: rgba(255,215,0,0.1);
+      color: #ffd700;
+      border: 1px solid rgba(255,215,0,0.3);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #btn-conta-wrap button:hover { background: rgba(255,215,0,0.2); }
+
+    @media (max-width: 480px) {
+      .btn-card { padding: 16px 20px; min-width: 100px; }
+      .btn-icon  { font-size: 22px; }
+    }
+  </style>
 </head>
 <body>
 
-<header style="display:flex;align-items:center;justify-content:space-between;padding:15px 20px;">
-  <span>Stronghold Library</span>
+<canvas id="bg-canvas"></canvas>
+
+<header>
+  <span class="logo">⚔ Stronghold Library</span>
   <div id="btn-conta-wrap"></div>
 </header>
 
-<div class="container" style="text-align:center; padding-top: 60px;">
-  <h1>Bem-vindo</h1>
-  <div class="menu" style="display:flex; gap:15px; justify-content:center; margin-top:30px;">
-    <button onclick="location.href='livraria.html'">📚 Livraria</button>
-    <button onclick="irCalendario()">📅 Calendário</button>
-    <button onclick="location.href='login-admin.html'">🔒 Admin</button>
+<div class="centro">
+  <h1 class="titulo-principal">Stronghold Library</h1>
+  <p class="subtitulo">Sua biblioteca pessoal</p>
+
+  <div class="botoes">
+    <button class="btn-card" onclick="location.href='livraria.html'">
+      <span class="btn-icon">📚</span>
+      <span class="btn-label">Livraria</span>
+    </button>
+    <button class="btn-card" onclick="irCalendario()">
+      <span class="btn-icon">📅</span>
+      <span class="btn-label">Calendário</span>
+    </button>
+    <button class="btn-card" onclick="location.href='login-admin.html'">
+      <span class="btn-icon">🔒</span>
+      <span class="btn-label">Admin</span>
+    </button>
   </div>
+
+  <div class="linha"></div>
 </div>
 
 <footer>Criado por Hiru Tagamashi</footer>
 
+<!-- Partículas -->
 <script>
 (function() {
-  const wrap    = document.getElementById("btn-conta-wrap")
-  // Conta via Supabase SDK
+  const canvas = document.getElementById("bg-canvas")
+  const ctx    = canvas.getContext("2d")
+  let W, H, particles = [], lines = []
+
+  function resize() {
+    W = canvas.width  = window.innerWidth
+    H = canvas.height = window.innerHeight
+  }
+  resize()
+  window.addEventListener("resize", () => { resize(); init() })
+
+  // Partículas brilhantes
+  class Particle {
+    constructor() { this.reset() }
+    reset() {
+      this.x    = Math.random() * W
+      this.y    = Math.random() * H
+      this.r    = Math.random() * 1.5 + 0.3
+      this.vx   = (Math.random() - 0.5) * 0.3
+      this.vy   = (Math.random() - 0.5) * 0.3
+      this.alpha = Math.random() * 0.6 + 0.1
+      this.pulse = Math.random() * Math.PI * 2
+      this.pulseSpeed = Math.random() * 0.02 + 0.005
+    }
+    update() {
+      this.x += this.vx
+      this.y += this.vy
+      this.pulse += this.pulseSpeed
+      if (this.x < 0 || this.x > W || this.y < 0 || this.y > H) this.reset()
+    }
+    draw() {
+      const a = this.alpha * (0.6 + 0.4 * Math.sin(this.pulse))
+      ctx.beginPath()
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(255,215,0,${a})`
+      ctx.fill()
+    }
+  }
+
+  function init() {
+    const N = Math.floor(W * H / 8000)
+    particles = Array.from({ length: N }, () => new Particle())
+  }
+  init()
+
+  let mouse = { x: W / 2, y: H / 2 }
+  window.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY })
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H)
+
+    // Fundo gradiente radial centrado no mouse
+    const grd = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, Math.max(W, H) * 0.7)
+    grd.addColorStop(0,   "rgba(255,215,0,0.06)")
+    grd.addColorStop(0.4, "rgba(255,180,0,0.02)")
+    grd.addColorStop(1,   "rgba(0,0,0,0)")
+    ctx.fillStyle = grd
+    ctx.fillRect(0, 0, W, H)
+
+    // Linhas entre partículas próximas
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x
+        const dy = particles[i].y - particles[j].y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist < 120) {
+          ctx.beginPath()
+          ctx.moveTo(particles[i].x, particles[i].y)
+          ctx.lineTo(particles[j].x, particles[j].y)
+          ctx.strokeStyle = `rgba(255,215,0,${0.08 * (1 - dist / 120)})`
+          ctx.lineWidth = 0.5
+          ctx.stroke()
+        }
+      }
+    }
+
+    // Partículas
+    particles.forEach(p => { p.update(); p.draw() })
+
+    // Reflexo do mouse
+    const mg = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 80)
+    mg.addColorStop(0,   "rgba(255,215,0,0.08)")
+    mg.addColorStop(1,   "rgba(255,215,0,0)")
+    ctx.fillStyle = mg
+    ctx.fillRect(0, 0, W, H)
+
+    requestAnimationFrame(draw)
+  }
+  draw()
+})()
+</script>
+
+<!-- Conta e navegação -->
+<script>
+(function() {
+  const wrap = document.getElementById("btn-conta-wrap")
   const _s = supabase.createClient(
     "https://iwggwgepwbrvmmrgsrvr.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3Z2d3Z2Vwd2Jydm1tcmdzcnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mzc4ODcsImV4cCI6MjA4OTExMzg4N30.BFaHUNavW7VOApg35r01SHsfjgYKUnhlT7YSADF9H6U"
   )
   const role     = localStorage.getItem("sl_role")
   const username = localStorage.getItem("sl_username")
-  const logado  = !!role
+  const logado   = !!role
+
+  const menuStyle = "display:none;position:absolute;right:0;top:110%;background:#111;border:1px solid rgba(255,215,0,0.2);border-radius:8px;min-width:160px;box-shadow:0 4px 20px rgba(0,0,0,0.8);z-index:100;"
 
   if (logado) {
     wrap.innerHTML = `
       <div style="position:relative;display:inline-block">
-        <button id="conta-btn" style="background:#333;color:#eee;border:none;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;">
-          👤 ${username || "Conta"} ▾
-        </button>
-        <div id="conta-menu" style="display:none;position:absolute;right:0;top:110%;background:#222;border:1px solid #333;border-radius:8px;min-width:150px;box-shadow:0 4px 16px rgba(0,0,0,0.5);z-index:100;">
-          <div style="padding:10px 14px;font-size:12px;color:#888;border-bottom:1px solid #333;">${username}</div>
+        <button id="conta-btn">👤 ${username || "Conta"} ▾</button>
+        <div id="conta-menu" style="${menuStyle}">
+          <div style="padding:10px 14px;font-size:12px;color:#888;border-bottom:1px solid #222;">${username}</div>
           <button onclick="sair()" style="width:100%;text-align:left;background:none;border:none;color:#f88;padding:10px 14px;font-size:13px;cursor:pointer;">🚪 Sair</button>
         </div>
       </div>`
@@ -59,20 +347,17 @@
       if (m) m.style.display = "none"
     })
   } else {
-    wrap.innerHTML = `<button onclick="location.href='login-admin.html'" style="background:#fff;color:#111;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:bold;cursor:pointer;">Entrar</button>`
+    wrap.innerHTML = `<button onclick="location.href='login.html'" style="background:rgba(255,215,0,0.1);color:#ffd700;border:1px solid rgba(255,215,0,0.3);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;">Entrar</button>`
   }
 
   function sair() {
-    _s.auth.signOut(); ["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
+    _s.auth.signOut()
+    ;["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
     location.reload()
   }
 
   window.irCalendario = function() {
-    if (logado) {
-      location.href = "calendario.html"
-    } else {
-      location.href = "login.html?next=calendario.html"
-    }
+    location.href = logado ? "calendario.html" : "login.html?next=calendario.html"
   }
 })()
 </script>
