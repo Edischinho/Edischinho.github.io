@@ -558,57 +558,75 @@
       const scale    = window.innerWidth < 600 ? 1.0 : 1.5
       const viewport = page.getViewport({ scale })
 
-      // Wrapper relativo para empilhar canvas + textLayer + SVG
+      // Wrapper: posição relativa para empilhar canvas + textLayer + SVG
       const wrap = document.createElement("div")
-      wrap.style.cssText = "position:relative;width:100%;display:block;"
+      wrap.style.cssText = "position:relative;width:100%;display:block;line-height:0;"
 
-      const canvas   = document.createElement("canvas")
-      const ctx      = canvas.getContext("2d")
-      canvas.height  = viewport.height
-      canvas.width   = viewport.width
+      // Canvas do PDF
+      const canvas = document.createElement("canvas")
+      const ctx    = canvas.getContext("2d")
+      canvas.height = viewport.height
+      canvas.width  = viewport.width
       canvas.style.cssText = "display:block;width:100%;border-radius:5px;"
-
       wrap.appendChild(canvas)
 
-      // SVG overlay para highlights
+      // SVG overlay — mesmos viewBox do viewport PDF
       const svg = document.createElementNS("http://www.w3.org/2000/svg","svg")
       svg.setAttribute("class","hl-svg")
       svg.setAttribute("viewBox",`0 0 ${viewport.width} ${viewport.height}`)
       svg.setAttribute("preserveAspectRatio","none")
+      svg.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"
       wrap.appendChild(svg)
 
-      // textLayer para seleção de texto
+      // textLayer — ocupa exatamente o mesmo espaço que o canvas renderizado
+      // Usamos width/height 100% e deixamos o PDF.js posicionar os spans
+      // internamente via transform — mas a div container acompanha o canvas
       const textDiv = document.createElement("div")
       textDiv.className = "textLayer"
-      textDiv.style.cssText = `position:absolute;top:0;left:0;width:${viewport.width}px;height:${viewport.height}px;transform-origin:top left;transform:scale(${wrap.offsetWidth/viewport.width||1});`
+      // Dimensões em px do PDF; CSS escala para 100% via transform abaixo
+      textDiv.style.cssText = [
+        "position:absolute;top:0;left:0;overflow:hidden;",
+        `width:${viewport.width}px;height:${viewport.height}px;`,
+        "transform-origin:top left;"
+      ].join("")
       wrap.appendChild(textDiv)
 
       container.innerHTML = ""
       container.appendChild(wrap)
 
-      // Renderizar PDF
+      // Renderizar canvas
       page.render({ canvasContext: ctx, viewport }).promise.then(() => {
-        // Escalar textLayer para coincidir com canvas exibido
-        const scaleX = canvas.offsetWidth / viewport.width || 1
-        textDiv.style.transform = `scale(${scaleX})`
+        // Agora o canvas tem tamanho real no DOM — calcular escala correta
+        const displayW = canvas.getBoundingClientRect().width
+        const s = displayW / viewport.width
+        textDiv.style.transform = `scale(${s})`
       })
 
-      // textLayer conteúdo
-      page.getTextContent().then(textContent => {
-        pdfjsLib.renderTextLayer({
-          textContentSource: textContent,
-          container: textDiv,
-          viewport,
-          textDivs: []
+      // Renderizar textLayer (PDF.js 3.x)
+      page.getTextContent().then(tc => {
+        const task = pdfjsLib.renderTextLayer({
+          textContentSource: tc,
+          container:         textDiv,
+          viewport:          viewport,
+          textDivs:          []
         })
+        // Reajustar escala após textLayer renderizar
+        if (task && task.promise) {
+          task.promise.then(() => {
+            const displayW = canvas.getBoundingClientRect().width
+            if (displayW > 0) {
+              textDiv.style.transform = `scale(${displayW / viewport.width})`
+            }
+          }).catch(()=>{})
+        }
       })
 
-      // Aplicar highlights salvos
+      // Desenhar highlights salvos
       redesenharHighlights(num, svg, viewport)
 
-      // Evento: após soltar seleção, capturar e aplicar highlight
-      wrap.addEventListener("mouseup",  (e) => capturarSelecao(e, num, wrap, svg, viewport))
-      wrap.addEventListener("touchend", (e) => capturarSelecao(e, num, wrap, svg, viewport))
+      // Capturar seleção ao soltar mouse/dedo
+      wrap.addEventListener("mouseup",  (e) => setTimeout(()=>capturarSelecao(e, num, canvas, svg, viewport), 0))
+      wrap.addEventListener("touchend", (e) => setTimeout(()=>capturarSelecao(e, num, canvas, svg, viewport), 0))
 
       // Badge de anotação
       if (logado) atualizarBadge(num, container)
@@ -1023,25 +1041,27 @@
   }
 
   // ── Capturar seleção de texto e criar highlight ──
-  function capturarSelecao(e, num, wrap, svg, viewport) {
+  function capturarSelecao(e, num, canvas, svg, viewport) {
     if (!modoHL) return
     if (corSelecionada === "") return   // modo apagar — não cria
 
     const sel = window.getSelection()
     if (!sel || sel.isCollapsed || !sel.rangeCount) return
 
-    const range    = sel.getRangeAt(0)
-    const rects    = Array.from(range.getClientRects())
+    const range = sel.getRangeAt(0)
+    const rects = Array.from(range.getClientRects())
     if (!rects.length) return
 
-    const wrapRect = wrap.getBoundingClientRect()
-    const scaleX   = viewport.width  / wrapRect.width
-    const scaleY   = viewport.height / wrapRect.height
+    // Usar o canvas como referência — ele tem as dimensões reais exibidas
+    // sem nenhuma transformação CSS aplicada
+    const canvasRect = canvas.getBoundingClientRect()
+    const scaleX = viewport.width  / canvasRect.width   // px tela → px PDF
+    const scaleY = viewport.height / canvasRect.height
 
-    // Converter coords de tela para coords do PDF (0–1 relativo)
+    // Coords relativas ao PDF (0–1)
     const hlRects = rects.map(r => ({
-      x: (r.left - wrapRect.left) * scaleX / viewport.width,
-      y: (r.top  - wrapRect.top)  * scaleY / viewport.height,
+      x: (r.left - canvasRect.left) * scaleX / viewport.width,
+      y: (r.top  - canvasRect.top)  * scaleY / viewport.height,
       w: r.width  * scaleX / viewport.width,
       h: r.height * scaleY / viewport.height
     })).filter(r => r.w > 0.001 && r.h > 0.001)
@@ -1062,10 +1082,11 @@
   function adicionarSVGRect(id, dados, svg, viewport) {
     dados.rects.forEach((r, i) => {
       const rect = document.createElementNS("http://www.w3.org/2000/svg","rect")
-      rect.setAttribute("x",      r.x * viewport.width)
-      rect.setAttribute("y",      r.y * viewport.height)
-      rect.setAttribute("width",  r.w * viewport.width)
-      rect.setAttribute("height", r.h * viewport.height)
+      // rects são coords relativas (0–1) → converter para px do viewport
+      rect.setAttribute("x",      (r.x * viewport.width).toFixed(2))
+      rect.setAttribute("y",      (r.y * viewport.height).toFixed(2))
+      rect.setAttribute("width",  (r.w * viewport.width).toFixed(2))
+      rect.setAttribute("height", (r.h * viewport.height).toFixed(2))
       rect.setAttribute("fill",   dados.cor)
       rect.setAttribute("opacity","0.4")
       rect.setAttribute("class",  "hl-rect")
