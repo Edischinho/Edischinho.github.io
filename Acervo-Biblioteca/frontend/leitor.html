@@ -271,6 +271,14 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  // ── Supabase client ──
+  const _supa = supabase.createClient(
+    "https://iwggwgepwbrvmmrgsrvr.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3Z2d3Z2Vwd2Jydm1tcmdzcnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mzc4ODcsImV4cCI6MjA4OTExMzg4N30.BFaHUNavW7VOApg35r01SHsfjgYKUnhlT7YSADF9H6U"
+  )
+</script>
 <script>
   const API    = "https://edischinho-github-io.onrender.com"
   const params = new URLSearchParams(window.location.search)
@@ -278,22 +286,37 @@
   const viewer = document.getElementById("viewer")
   let pdfDoc   = null
 
-  // ── Sessão do usuário (salva pelo login.html no sessionStorage) ──
-  const userId   = localStorage.getItem("sl_user_id")  || null
-  const username = localStorage.getItem("sl_username") || null
-  const role     = localStorage.getItem("sl_role")     || null
-  const logado   = !!(userId && role === "user")
+  // ── Sessão — lida do Supabase SDK ──
+  let userId   = null
+  let username = null
+  let logado   = false
 
   // Anotações: { pagina: texto }
-  let anotacoes     = {}
-  let paginaNoDrawer = 1   // página sendo editada no drawer
+  let anotacoes      = {}
+  let paginaNoDrawer = 1
 
-  if (!pdfUrl) {
-    mostrarErro("Nenhum arquivo especificado.")
-  } else {
-    carregarPDF(decodeURIComponent(pdfUrl))
-    carregarAnotacoes()   // carrega do Supabase se logado, localStorage se não
+  // Inicializa sessão e então carrega tudo
+  async function init() {
+    const { data } = await _supa.auth.getSession()
+    if (data.session) {
+      userId   = data.session.user.id
+      username = data.session.user.user_metadata?.username
+              || data.session.user.email.split("@")[0]
+      logado   = true
+      // Mantém localStorage sincronizado para as outras páginas exibirem o nome
+      localStorage.setItem("sl_role",     "user")
+      localStorage.setItem("sl_username", username)
+    }
+
+    if (!pdfUrl) {
+      mostrarErro("Nenhum arquivo especificado.")
+    } else {
+      carregarPDF(decodeURIComponent(pdfUrl))
+      carregarAnotacoes()
+    }
   }
+
+  init()
 
   // ── Carregar PDF ──
   function carregarPDF(url) {
@@ -760,39 +783,47 @@
 <script>
 (function() {
   const wrap     = document.getElementById("btn-conta-wrap")
-  const role     = localStorage.getItem("sl_role")
-  const username = localStorage.getItem("sl_username")
-  const logado   = !!role
-
   const btnStyle = "background:#222;color:#eee;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap;"
 
-  if (logado) {
-    wrap.innerHTML = `
-      <button id="conta-btn" style="${btnStyle}display:flex;align-items:center;gap:6px;">
-        👤 ${username || "Conta"} ▾
-      </button>
-      <div id="conta-menu" style="display:none;position:absolute;right:0;top:110%;background:#222;border:1px solid #444;border-radius:8px;min-width:150px;box-shadow:0 4px 16px rgba(0,0,0,0.6);z-index:100;">
-        <div style="padding:10px 14px;font-size:12px;color:#888;border-bottom:1px solid #333;">${username}</div>
-        <button onclick="sairConta()" style="width:100%;text-align:left;background:none;border:none;color:#f88;padding:10px 14px;font-size:13px;cursor:pointer;">🚪 Sair</button>
-      </div>`
-    document.getElementById("conta-btn").addEventListener("click", (e) => {
-      e.stopPropagation()
-      const m = document.getElementById("conta-menu")
-      m.style.display = m.style.display === "none" ? "block" : "none"
-    })
-    document.addEventListener("click", () => {
-      const m = document.getElementById("conta-menu")
-      if (m) m.style.display = "none"
-    })
-  } else {
-    wrap.innerHTML = `<button onclick="location.href='login.html'" style="${btnStyle}background:#fff;color:#111;font-weight:bold;">Entrar</button>`
-  }
+  // Lê sessão do Supabase SDK para decidir o que mostrar
+  _supa.auth.getSession().then(({ data }) => {
+    const session  = data.session
+    const role     = localStorage.getItem("sl_role")  // admin não tem sessão Supabase
+    const isAdmin  = role === "admin"
+    const uname    = session
+      ? (session.user.user_metadata?.username || session.user.email.split("@")[0])
+      : (isAdmin ? "admin" : null)
+    const logado   = !!(session || isAdmin)
 
-  function sairConta() {
-    // Remove só as chaves de sessão, preserva anotações e posições
-    ["sl_role","sl_username","sl_user_id"].forEach(k => localStorage.removeItem(k))
+    if (logado) {
+      wrap.innerHTML = `
+        <button id="conta-btn" style="${btnStyle}display:flex;align-items:center;gap:6px;">
+          👤 ${uname || "Conta"} ▾
+        </button>
+        <div id="conta-menu" style="display:none;position:absolute;right:0;top:110%;background:#222;border:1px solid #444;border-radius:8px;min-width:150px;box-shadow:0 4px 16px rgba(0,0,0,0.6);z-index:100;">
+          <div style="padding:10px 14px;font-size:12px;color:#888;border-bottom:1px solid #333;">${uname}</div>
+          <button onclick="sairConta()" style="width:100%;text-align:left;background:none;border:none;color:#f88;padding:10px 14px;font-size:13px;cursor:pointer;">🚪 Sair</button>
+        </div>`
+      document.getElementById("conta-btn").addEventListener("click", (e) => {
+        e.stopPropagation()
+        const m = document.getElementById("conta-menu")
+        m.style.display = m.style.display === "none" ? "block" : "none"
+      })
+      document.addEventListener("click", () => {
+        const m = document.getElementById("conta-menu")
+        if (m) m.style.display = "none"
+      })
+    } else {
+      wrap.innerHTML = `<button onclick="location.href='login.html'" style="${btnStyle}background:#fff;color:#111;font-weight:bold;">Entrar</button>`
+    }
+  })
+
+  async function sairConta() {
+    await _supa.auth.signOut()
+    ;["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
     location.href = "index.html"
   }
+  window.sairConta = sairConta
 })()
 </script>
 
