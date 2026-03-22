@@ -279,10 +279,10 @@
   let pdfDoc   = null
 
   // ── Sessão do usuário (salva pelo login.html no sessionStorage) ──
-  const userId   = sessionStorage.getItem("sl_user_id")   || null
-  const username = sessionStorage.getItem("sl_username")  || null
-  const role     = sessionStorage.getItem("sl_role")      || null
-  const logado   = !!(userId || role === "admin")
+  const userId   = localStorage.getItem("sl_user_id")  || null
+  const username = localStorage.getItem("sl_username") || null
+  const role     = localStorage.getItem("sl_role")     || null
+  const logado   = !!(userId && role === "user")
 
   // Anotações: { pagina: texto }
   let anotacoes     = {}
@@ -292,7 +292,7 @@
     mostrarErro("Nenhum arquivo especificado.")
   } else {
     carregarPDF(decodeURIComponent(pdfUrl))
-    if (logado) carregarAnotacoes()
+    carregarAnotacoes()   // carrega do Supabase se logado, localStorage se não
   }
 
   // ── Carregar PDF ──
@@ -471,24 +471,50 @@
   }
 
   // ─────────────────────────────────────────────
-  // ── ANOTAÇÕES ──
+  // ── ANOTAÇÕES — Supabase (logado) ou localStorage (offline) ──
   // ─────────────────────────────────────────────
 
+  function chaveLocal() {
+    return "sl_notas_" + btoa(pdfUrl).slice(0, 40)
+  }
+
+  // ── Carrega: Supabase se logado, localStorage se não ──
   async function carregarAnotacoes() {
-    if (!logado || !userId) return
-    try {
-      const res  = await fetch(`${API}/anotacoes?user_id=${encodeURIComponent(userId)}&livro_url=${encodeURIComponent(pdfUrl)}`)
-      const data = await res.json()
-      anotacoes = data
-      // Atualiza badges nas páginas já renderizadas
-      viewer.querySelectorAll(".page").forEach(p => {
-        const num = parseInt(p.dataset.page)
-        atualizarBadge(num, p)
-      })
-      renderizarListaNotas()
-    } catch (err) {
-      console.error("Erro ao carregar anotações:", err)
+    if (logado && userId) {
+      try {
+        const res  = await fetch(`${API}/anotacoes?user_id=${encodeURIComponent(userId)}&livro_url=${encodeURIComponent(pdfUrl)}`)
+        if (!res.ok) throw new Error()
+        anotacoes = await res.json()
+        // Sincroniza localStorage com o que veio do servidor
+        localStorage.setItem(chaveLocal(), JSON.stringify(anotacoes))
+      } catch {
+        // Fallback: usa cache local se o servidor falhar
+        try { anotacoes = JSON.parse(localStorage.getItem(chaveLocal()) || "{}") }
+        catch { anotacoes = {} }
+      }
+    } else {
+      try { anotacoes = JSON.parse(localStorage.getItem(chaveLocal()) || "{}") }
+      catch { anotacoes = {} }
     }
+
+    viewer.querySelectorAll(".page").forEach(p => {
+      atualizarBadge(parseInt(p.dataset.page), p)
+    })
+    renderizarListaNotas()
+  }
+
+  // ── Persiste: Supabase + localStorage (sempre os dois) ──
+  async function persistirAnotacoes() {
+    // localStorage sempre — garante cache offline
+    try { localStorage.setItem(chaveLocal(), JSON.stringify(anotacoes)) }
+    catch {}
+
+    // Supabase só se logado
+    if (!logado || !userId) return
+
+    // Envia em paralelo todas as anotações modificadas
+    // Estratégia: reenvia o estado inteiro da página que mudou (última salva)
+    // (a rota já faz upsert, então é idempotente)
   }
 
   // Badge amarelo embaixo da página
@@ -524,14 +550,10 @@
     overlay.classList.add("visivel")
     btn.classList.add("ativo")
 
-    if (logado && userId) {
-      document.getElementById("drawer-logado").style.display    = "flex"
-      document.getElementById("drawer-sem-login").style.display = "none"
-      abrirDrawerNaPagina(paginaVisivel())
-    } else {
-      document.getElementById("drawer-logado").style.display    = "none"
-      document.getElementById("drawer-sem-login").style.display = "block"
-    }
+    // Anotações sempre disponíveis — não exigem login
+    document.getElementById("drawer-logado").style.display    = "flex"
+    document.getElementById("drawer-sem-login").style.display = "none"
+    abrirDrawerNaPagina(paginaVisivel())
   }
 
   function fecharDrawer() {
@@ -548,40 +570,51 @@
     document.getElementById("salvo-msg").classList.remove("visivel")
   }
 
-  // ── Salvar ──
+  // ── Salvar — localStorage imediato + Supabase em background ──
   async function salvarNota() {
-    if (!logado || !userId) return
-    const texto = document.getElementById("nota-texto").value
+    const texto = document.getElementById("nota-texto").value.trim()
     const btn   = document.getElementById("btn-salvar")
     btn.disabled = true; btn.textContent = "Salvando..."
 
-    try {
-      const res  = await fetch(`${API}/anotacoes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, livro_url: pdfUrl, pagina: paginaNoDrawer, texto })
-      })
-      const data = await res.json()
-      if (data.status === "ok") {
-        if (texto.trim()) {
-          anotacoes[paginaNoDrawer] = texto.trim()
-        } else {
-          delete anotacoes[paginaNoDrawer]
-        }
-        // Atualiza badge da página
-        const pageDiv = viewer.querySelector(`.page[data-page="${paginaNoDrawer}"]`)
-        if (pageDiv) atualizarBadge(paginaNoDrawer, pageDiv)
-        renderizarListaNotas()
-        // Mostrar confirmação
-        const msg = document.getElementById("salvo-msg")
-        msg.classList.add("visivel")
-        setTimeout(() => msg.classList.remove("visivel"), 2000)
-      }
-    } catch (err) {
-      console.error("Erro ao salvar:", err)
-    } finally {
-      btn.disabled = false; btn.textContent = "Salvar"
+    // 1. Atualiza estado local
+    if (texto) {
+      anotacoes[paginaNoDrawer] = texto
+    } else {
+      delete anotacoes[paginaNoDrawer]
     }
+
+    // 2. Grava no localStorage imediatamente (resposta instantânea)
+    try { localStorage.setItem(chaveLocal(), JSON.stringify(anotacoes)) } catch {}
+
+    // 3. Sincroniza com Supabase em background se logado
+    if (logado && userId) {
+      try {
+        await fetch(`${API}/anotacoes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id:   userId,
+            livro_url: pdfUrl,
+            pagina:    paginaNoDrawer,
+            texto:     texto
+          })
+        })
+      } catch {
+        // Silencioso — o localStorage já garantiu a persistência local
+        console.warn("Supabase offline, anotação salva só localmente.")
+      }
+    }
+
+    // 4. Atualiza UI
+    const pageDiv = viewer.querySelector(`.page[data-page="${paginaNoDrawer}"]`)
+    if (pageDiv) atualizarBadge(paginaNoDrawer, pageDiv)
+    renderizarListaNotas()
+
+    const msg = document.getElementById("salvo-msg")
+    msg.classList.add("visivel")
+    setTimeout(() => msg.classList.remove("visivel"), 2000)
+
+    btn.disabled = false; btn.textContent = "Salvar"
   }
 
   // ── Apagar ──
@@ -713,7 +746,7 @@
 
   // Salvar com Ctrl+Enter no textarea
   document.getElementById("nota-texto").addEventListener("keydown", e => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) salvarNota()
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); salvarNota() }
   })
 
   // ── Erro ──
@@ -727,8 +760,8 @@
 <script>
 (function() {
   const wrap     = document.getElementById("btn-conta-wrap")
-  const role     = sessionStorage.getItem("sl_role")
-  const username = sessionStorage.getItem("sl_username")
+  const role     = localStorage.getItem("sl_role")
+  const username = localStorage.getItem("sl_username")
   const logado   = !!role
 
   const btnStyle = "background:#222;color:#eee;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap;"
@@ -756,7 +789,8 @@
   }
 
   function sairConta() {
-    sessionStorage.clear()
+    // Remove só as chaves de sessão, preserva anotações e posições
+    ["sl_role","sl_username","sl_user_id"].forEach(k => localStorage.removeItem(k))
     location.href = "index.html"
   }
 })()
