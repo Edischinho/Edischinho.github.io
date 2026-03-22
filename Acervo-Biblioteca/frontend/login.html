@@ -190,7 +190,7 @@ async function fazerLogin() {
       })
       const data = await res.json()
       if (data.status === "ok") {
-        sessionStorage.setItem("sl_role", "admin")
+        localStorage.setItem("sl_role", "admin")
         location.href = "admin.html"
       } else {
         mostrarMsg("msg-login", data.message, "erro")
@@ -210,9 +210,9 @@ async function fazerLogin() {
     })
     const data = await res.json()
     if (data.status === "ok") {
-      sessionStorage.setItem("sl_role",     "user")
-      sessionStorage.setItem("sl_username", data.username)
-      sessionStorage.setItem("sl_user_id",  data.user_id)
+      localStorage.setItem("sl_role",     "user")
+      localStorage.setItem("sl_username", data.username)
+      localStorage.setItem("sl_user_id",  data.user_id)
       location.href = "livraria.html"
     } else {
       mostrarMsg("msg-login", data.message, "erro")
