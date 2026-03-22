@@ -19,6 +19,7 @@
   <h1>Bem-vindo</h1>
   <div class="menu" style="display:flex; gap:15px; justify-content:center; margin-top:30px;">
     <button onclick="location.href='livraria.html'">📚 Livraria</button>
+    <button onclick="irCalendario()">📅 Calendário</button>
     <button onclick="location.href='login-admin.html'">🔒 Admin</button>
   </div>
 </div>
@@ -64,6 +65,14 @@
   function sair() {
     _s.auth.signOut(); ["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
     location.reload()
+  }
+
+  window.irCalendario = function() {
+    if (logado) {
+      location.href = "calendario.html"
+    } else {
+      location.href = "login.html?next=calendario.html"
+    }
   }
 })()
 </script>
