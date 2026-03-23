@@ -374,7 +374,8 @@
     const token = data?.session?.access_token || ""
     return token ? { "Authorization": "Bearer " + token } : {}
   }
-  const pdfUrl = params.get("pdf")
+  const pdfUrl        = params.get("pdf")
+  const pdfUrlDecoded = pdfUrl ? decodeURIComponent(pdfUrl) : ""
   const viewer = document.getElementById("viewer")
   let pdfDoc   = null
 
@@ -670,9 +671,6 @@
   }
 
   function chaveLocal()  { return "sl_notas_" + hashUrl(pdfUrl) }
-
-  // URL decodificada — usada como identificador único no backend
-  const pdfUrlDecoded = decodeURIComponent(pdfUrl)
 
   // ── Carrega: backend (JWT) se logado, localStorage se não ──
   async function carregarAnotacoes() {
