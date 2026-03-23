@@ -229,11 +229,15 @@ app.get("/anotacoes", exigirUsuario, async (req, res) => {
   if (!livro_url) return res.status(400).json({ status: "erro", message: "livro_url obrigatório." })
 
   try {
+    // Busca pelos dois formatos possíveis (encodado e decodificado) para compatibilidade
+    const urlDec = decodeURIComponent(livro_url)
+    const urlEnc = encodeURIComponent(urlDec)
+
     const { data, error } = await supabase
       .from("anotacoes")
       .select("pagina, texto")
-      .eq("user_id", req.userId)   // user_id vem do JWT verificado, não do cliente
-      .eq("livro_url", livro_url)
+      .eq("user_id", req.userId)
+      .in("livro_url", [urlDec, urlEnc, livro_url])
     if (error) throw error
     const mapa = {}
     data.forEach(a => { mapa[a.pagina] = a.texto })
@@ -247,14 +251,18 @@ app.post("/anotacoes", exigirUsuario, async (req, res) => {
   const { livro_url, pagina, texto } = req.body
   if (!livro_url || !pagina) return res.status(400).json({ status: "erro", message: "Parâmetros faltando." })
 
+  // Normalizar sempre para URL decodificada
+  const urlNorm = decodeURIComponent(livro_url)
+
   try {
     if (!texto || !String(texto).trim()) {
-      const { error } = await supabase.from("anotacoes").delete()
-        .eq("user_id", req.userId).eq("livro_url", livro_url).eq("pagina", pagina)
-      if (error) throw error
+      // Deletar em ambos os formatos para garantir limpeza
+      const urlEnc = encodeURIComponent(urlNorm)
+      await supabase.from("anotacoes").delete()
+        .eq("user_id", req.userId).in("livro_url", [urlNorm, urlEnc]).eq("pagina", pagina)
     } else {
       const { error } = await supabase.from("anotacoes")
-        .upsert({ user_id: req.userId, livro_url, pagina, texto: String(texto).slice(0,5000) },
+        .upsert({ user_id: req.userId, livro_url: urlNorm, pagina, texto: String(texto).slice(0,5000) },
                  { onConflict: "user_id,livro_url,pagina" })
       if (error) throw error
     }
@@ -271,7 +279,7 @@ app.get("/highlights", exigirUsuario, async (req, res) => {
   try {
     const { data, error } = await supabase.from("highlights")
       .select("hl_id, pagina, cor, nota, img_data")
-      .eq("user_id", req.userId).eq("livro_url", livro_url)
+      .eq("user_id", req.userId).eq("livro_url", decodeURIComponent(livro_url))
     if (error) throw error
     res.json(data)
   } catch {
@@ -324,7 +332,7 @@ app.get("/progresso", exigirUsuario, async (req, res) => {
   if (!livro_url) return res.status(400).json({ status: "erro", message: "livro_url obrigatório." })
   try {
     const { data, error } = await supabase.from("progresso")
-      .select("pagina").eq("user_id", req.userId).eq("livro_url", livro_url).single()
+      .select("pagina").eq("user_id", req.userId).eq("livro_url", decodeURIComponent(livro_url)).single()
     if (error && error.code !== "PGRST116") throw error
     res.json({ pagina: data?.pagina || 1 })
   } catch {
