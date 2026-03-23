@@ -368,11 +368,13 @@
   const API    = "https://edischinho-github-io.onrender.com"
   const params = new URLSearchParams(window.location.search)
 
-  // Pega o JWT da sessão Supabase para autenticar no backend
-  async function jwtHeader() {
-    const { data } = await _supa.auth.getSession()
-    const token = data?.session?.access_token || ""
-    return token ? { "Authorization": "Bearer " + token } : {}
+  // Token da sessão — preenchido no init()
+  let _accessToken = ""
+
+  function jwtHeader() {
+    return _accessToken
+      ? { "Authorization": "Bearer " + _accessToken }
+      : {}
   }
   const pdfUrl        = params.get("pdf")
   const pdfUrlDecoded = pdfUrl ? decodeURIComponent(pdfUrl) : ""
@@ -390,24 +392,29 @@
 
   // Inicializa sessão e então carrega tudo
   async function init() {
+    // 1. Resolver sessão PRIMEIRO — logado/userId ficam disponíveis para tudo abaixo
     const { data } = await _supa.auth.getSession()
     if (data.session) {
-      userId   = data.session.user.id
-      username = data.session.user.user_metadata?.username
-              || data.session.user.email.split("@")[0]
-      logado   = true
-      // Mantém localStorage sincronizado para as outras páginas exibirem o nome
+      userId        = data.session.user.id
+      username      = data.session.user.user_metadata?.username
+                   || data.session.user.email.split("@")[0]
+      logado        = true
+      _accessToken  = data.session.access_token
       localStorage.setItem("sl_role",     "user")
       localStorage.setItem("sl_username", username)
     }
 
     if (!pdfUrl) {
       mostrarErro("Nenhum arquivo especificado.")
-    } else {
-      carregarPDF(decodeURIComponent(pdfUrl))
-      carregarAnotacoes()
-      carregarMarcacoes()
+      return
     }
+
+    // 2. Carregar PDF (não depende de sessão)
+    carregarPDF(decodeURIComponent(pdfUrl))
+
+    // 3. Carregar anotações e marcações APÓS sessão resolvida (await garante ordem)
+    await carregarAnotacoes()
+    await carregarMarcacoes()
   }
 
   init()
@@ -444,7 +451,7 @@
           // Se logado, busca do Supabase (pode ser mais recente que o local)
           if (logado && userId) {
             try {
-              const headers = await jwtHeader()
+              const headers = jwtHeader()
               const res  = await fetch(`${API}/progresso?livro_url=${encodeURIComponent(pdfUrlDecoded)}`, { headers })
               const data = await res.json()
               if (data && data.pagina > pagFinal) pagFinal = data.pagina
@@ -520,7 +527,7 @@
       if (_saveTimer) clearTimeout(_saveTimer)
       _saveTimer = setTimeout(async () => {
         try {
-          const headers = await jwtHeader()
+          const headers = jwtHeader()
           await fetch(`${API}/progresso`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...headers },
@@ -676,7 +683,7 @@
   async function carregarAnotacoes() {
     if (logado && userId) {
       try {
-        const headers = await jwtHeader()
+        const headers = jwtHeader()
         const res  = await fetch(`${API}/anotacoes?livro_url=${encodeURIComponent(pdfUrlDecoded)}`, { headers })
         if (!res.ok) throw new Error()
         anotacoes = await res.json()
@@ -782,7 +789,7 @@
     // 3. Sincroniza com backend (JWT) em background se logado
     if (logado && userId) {
       try {
-        const headers = await jwtHeader()
+        const headers = jwtHeader()
         await fetch(`${API}/anotacoes`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...headers },
@@ -948,7 +955,7 @@
 
     if (logado && userId) {
       try {
-        const headers = await jwtHeader()
+        const headers = jwtHeader()
         const res  = await fetch(`${API}/highlights?livro_url=${encodeURIComponent(pdfUrlDecoded)}`, { headers })
         const data = await res.json()
         if (Array.isArray(data) && data.length) {
@@ -988,7 +995,7 @@
     const h = highlights[id]
     if (!h) return
     try {
-      const headers = await jwtHeader()
+      const headers = jwtHeader()
       await fetch(`${API}/highlights`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
@@ -1003,7 +1010,7 @@
     try { localStorage.setItem(chaveHL(), JSON.stringify(highlights)) } catch {}
     if (logado && userId) {
       try {
-        const headers = await jwtHeader()
+        const headers = jwtHeader()
         await fetch(`${API}/highlights/${encodeURIComponent(id)}`, { method: "DELETE", headers })
       } catch {}
     }
