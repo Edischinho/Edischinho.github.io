@@ -2,7 +2,6 @@ const express  = require("express")
 const multer   = require("multer")
 const fs       = require("fs")
 const cors     = require("cors")
-const rateLimit = require("express-rate-limit")
 const { createClient } = require("@supabase/supabase-js")
 
 const app = express()
@@ -24,7 +23,6 @@ const ORIGENS_PERMITIDAS = (process.env.ALLOWED_ORIGINS || "")
 
 app.use(cors({
   origin: (origin, cb) => {
-    // Permite requisições sem origin (ex: Render health check, curl)
     if (!origin) return cb(null, true)
     if (ORIGENS_PERMITIDAS.length === 0 || ORIGENS_PERMITIDAS.includes(origin)) {
       return cb(null, true)
@@ -37,30 +35,13 @@ app.use(cors({
 
 app.use(express.json({ limit: "1mb" }))
 
-// ── Rate limiting ──
-const limitadorGeral = rateLimit({
-  windowMs: 15 * 60 * 1000,  // 15 min
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { status: "erro", message: "Muitas requisições. Tente novamente em 15 minutos." }
-})
-
-const limitadorLogin = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,   // máx 10 tentativas de login por IP a cada 15 min
-  message: { status: "erro", message: "Muitas tentativas de login. Aguarde 15 minutos." }
-})
-
-app.use(limitadorGeral)
-
-// ── Credenciais — APENAS de variáveis de ambiente, nunca hardcoded ──
+// ── Credenciais — APENAS de variáveis de ambiente ──
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_KEY
-const ADMIN_TOKEN  = process.env.ADMIN_TOKEN   // token secreto para rotas admin
+const ADMIN_TOKEN  = process.env.ADMIN_TOKEN
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error("ERRO: SUPABASE_URL e SUPABASE_KEY são obrigatórias como variáveis de ambiente.")
+  console.error("ERRO: SUPABASE_URL e SUPABASE_KEY são obrigatórias.")
   process.exit(1)
 }
 if (!ADMIN_TOKEN) {
@@ -73,7 +54,7 @@ if (!fs.existsSync("temp")) fs.mkdirSync("temp")
 
 // ── Middleware: verificar token admin ──
 function exigirAdmin(req, res, next) {
-  if (!ADMIN_TOKEN) return next()   // dev sem token configurado
+  if (!ADMIN_TOKEN) return next()
   const auth  = req.headers["authorization"] || ""
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : ""
   if (token !== ADMIN_TOKEN) {
@@ -100,7 +81,7 @@ async function exigirUsuario(req, res, next) {
 
 const upload = multer({
   dest: "temp/",
-  limits: { fileSize: 50 * 1024 * 1024 }  // 50MB máx
+  limits: { fileSize: 50 * 1024 * 1024 }
 })
 
 // ─── ROTAS ────────────────────────────────────────────────
@@ -108,7 +89,7 @@ const upload = multer({
 app.get("/", (req, res) => res.json({ status: "ok" }))
 
 // ── Login admin ──
-app.post("/login", limitadorLogin, (req, res) => {
+app.post("/login", (req, res) => {
   const { user, password } = req.body
   const ADMIN_USER = process.env.ADMIN_USER || "admin"
   const ADMIN_PASS = process.env.ADMIN_PASS
@@ -119,7 +100,6 @@ app.post("/login", limitadorLogin, (req, res) => {
   if (user === ADMIN_USER && password === ADMIN_PASS) {
     res.json({ status: "ok", role: "admin", token: ADMIN_TOKEN || "" })
   } else {
-    // Delay para dificultar timing attacks
     setTimeout(() => {
       res.status(401).json({ status: "erro", message: "Credenciais inválidas." })
     }, 500)
@@ -133,7 +113,7 @@ app.get("/livros", async (req, res) => {
       .from("livros").select("*").order("id", { ascending: false })
     if (error) throw error
     res.json(data)
-  } catch (err) {
+  } catch {
     res.status(500).json({ status: "erro", message: "Erro ao buscar livros." })
   }
 })
@@ -147,15 +127,14 @@ app.post("/addLivro", exigirAdmin, upload.single("arquivo"), async (req, res) =>
     if (!req.file) return res.status(400).json({ status: "erro", message: "Nenhum arquivo enviado." })
     if (!titulo)   return res.status(400).json({ status: "erro", message: "Título obrigatório." })
 
-    // Validar extensão
-    const ext     = (req.file.originalname.split(".").pop() || "").toLowerCase()
-    const extsOk  = ["pdf","png","jpg","jpeg","webp"]
+    const ext    = (req.file.originalname.split(".").pop() || "").toLowerCase()
+    const extsOk = ["pdf","png","jpg","jpeg","webp"]
     if (!extsOk.includes(ext)) {
       fs.unlinkSync(req.file.path)
       return res.status(400).json({ status: "erro", message: "Tipo de arquivo não permitido." })
     }
 
-    const fileName  = `${Date.now()}-${titulo.replace(/[^a-zA-Z0-9À-ú]/g,"_")}.${ext}`
+    const fileName   = `${Date.now()}-${titulo.replace(/[^a-zA-Z0-9À-ú]/g,"_")}.${ext}`
     const fileBuffer = fs.readFileSync(req.file.path)
 
     const { error: uploadError } = await supabase.storage
@@ -223,21 +202,16 @@ app.delete("/livros/:id", exigirAdmin, async (req, res) => {
   }
 })
 
-// ── Anotações — exige JWT válido do usuário ──
+// ── Anotações ──
 app.get("/anotacoes", exigirUsuario, async (req, res) => {
   const { livro_url } = req.query
   if (!livro_url) return res.status(400).json({ status: "erro", message: "livro_url obrigatório." })
-
   try {
-    // Busca pelos dois formatos possíveis (encodado e decodificado) para compatibilidade
     const urlDec = decodeURIComponent(livro_url)
     const urlEnc = encodeURIComponent(urlDec)
-
     const { data, error } = await supabase
-      .from("anotacoes")
-      .select("pagina, texto")
-      .eq("user_id", req.userId)
-      .in("livro_url", [urlDec, urlEnc, livro_url])
+      .from("anotacoes").select("pagina, texto")
+      .eq("user_id", req.userId).in("livro_url", [urlDec, urlEnc, livro_url])
     if (error) throw error
     const mapa = {}
     data.forEach(a => { mapa[a.pagina] = a.texto })
@@ -250,13 +224,9 @@ app.get("/anotacoes", exigirUsuario, async (req, res) => {
 app.post("/anotacoes", exigirUsuario, async (req, res) => {
   const { livro_url, pagina, texto } = req.body
   if (!livro_url || !pagina) return res.status(400).json({ status: "erro", message: "Parâmetros faltando." })
-
-  // Normalizar sempre para URL decodificada
   const urlNorm = decodeURIComponent(livro_url)
-
   try {
     if (!texto || !String(texto).trim()) {
-      // Deletar em ambos os formatos para garantir limpeza
       const urlEnc = encodeURIComponent(urlNorm)
       await supabase.from("anotacoes").delete()
         .eq("user_id", req.userId).in("livro_url", [urlNorm, urlEnc]).eq("pagina", pagina)
