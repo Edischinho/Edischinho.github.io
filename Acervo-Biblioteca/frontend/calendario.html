@@ -66,6 +66,15 @@
       cursor: pointer; transition: background 0.1s;
       vertical-align: top;
     }
+
+    /* ── Mobile: grade rola livremente, sem altura forçada ── */
+    @media (max-width: 700px) {
+      .cal-body { overflow: auto; }
+      .grade-wrap { flex: none; overflow: visible; height: auto !important; }
+      .grade { height: auto !important; grid-template-rows: unset !important; }
+      .celula { min-height: 70px; }
+      .dias-header { position: sticky; top: 0; z-index: 10; }
+    }
     .celula:hover { background: rgba(255,255,255,0.03); }
     .celula.outro-mes { opacity: 0.35; }
     .celula.hoje-cel { background: rgba(255,215,0,0.06); }
