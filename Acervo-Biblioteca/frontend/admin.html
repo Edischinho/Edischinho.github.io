@@ -175,7 +175,35 @@ function authHeader() {
 }
 let idEditando = null
 
-fetch(`${API}/`, { method: "GET", mode: "cors" }).catch(() => {})
+// ── Acordar servidor e avisar o usuário ──
+async function acordarServidor() {
+  const btn = document.getElementById("btn-enviar")
+  btn.disabled = true
+  btn.textContent = "Conectando ao servidor..."
+  mostrarStatus("Aguarde, conectando ao servidor...", "info")
+
+  for (let i = 1; i <= 5; i++) {
+    try {
+      const res = await fetch(`${API}/`, { method: "GET", mode: "cors" })
+      if (res.ok) {
+        btn.disabled = false
+        btn.textContent = "Enviar Livro"
+        mostrarStatus("✅ Servidor conectado!", "ok")
+        setTimeout(() => {
+          document.getElementById("status-msg").style.display = "none"
+        }, 2000)
+        return
+      }
+    } catch {}
+    mostrarStatus(`Servidor acordando... tentativa ${i}/5`, "info")
+    await new Promise(r => setTimeout(r, 4000))
+  }
+
+  btn.disabled = false
+  btn.textContent = "Enviar Livro"
+  mostrarStatus("Servidor pode estar lento. Tente enviar assim mesmo.", "info")
+}
+acordarServidor()
 
 // ── Preview tags ──
 document.getElementById("tags").addEventListener("input", function () {
