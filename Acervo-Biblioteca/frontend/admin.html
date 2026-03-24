@@ -4,9 +4,10 @@
   <meta charset="UTF-8">
   <link rel="icon" type="image/x-icon" href="IconeSH.ico">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin — Omnisentis</title>
+  <title>Admin — Stronghold Library</title>
   <link rel="stylesheet" href="style.css">
   <style>
+    /* ── Tags ── */
     .tags-input-wrap { margin-bottom: 10px; }
     .tags-preview {
       display: flex; flex-wrap: wrap; gap: 6px;
@@ -22,37 +23,6 @@
       display: inline-block; margin: 2px;
     }
 
-    /* ── Capa preview ── */
-    .capa-preview-wrap {
-      margin-bottom: 10px;
-    }
-    .capa-preview {
-      display: none;
-      width: 100px; height: 140px;
-      object-fit: cover;
-      border-radius: 6px;
-      border: 2px solid #ccc;
-      margin-top: 8px;
-    }
-    .capa-preview.visivel { display: block; }
-
-    /* ── Admin card com capa ── */
-    .livro-admin-card {
-      display: flex; align-items: center; gap: 12px;
-      flex-wrap: wrap;
-    }
-    .card-capa {
-      width: 48px; height: 68px;
-      object-fit: cover; border-radius: 4px;
-      border: 1px solid #ccc; flex-shrink: 0;
-    }
-    .card-sem-capa {
-      width: 48px; height: 68px;
-      background: #ddd; border-radius: 4px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px; flex-shrink: 0;
-    }
-
     /* ── Modal ── */
     .modal-overlay {
       display: none;
@@ -66,35 +36,28 @@
       background: white; border-radius: 12px;
       padding: 28px; width: 90%; max-width: 460px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-      max-height: 90vh; overflow-y: auto;
     }
     .modal h3 { margin-top: 0; }
-    .modal input, .modal textarea { width: 100%; margin-bottom: 10px; }
-    .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
-    .btn-cancelar { background: #aaa; }
+    .modal input, .modal textarea {
+      width: 100%; margin-bottom: 10px;
+    }
+    .modal-btns {
+      display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px;
+    }
+    .btn-cancelar {
+      background: #aaa;
+    }
     .btn-cancelar:hover { background: #888; }
-
-    /* Capa atual no modal */
-    .capa-atual {
-      display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
-    }
-    .capa-atual img {
-      width: 60px; height: 84px; object-fit: cover;
-      border-radius: 5px; border: 1px solid #ccc;
-    }
-    .capa-atual span { font-size: 13px; color: #888; }
 
     @media (prefers-color-scheme: dark) {
       .tag-pill  { background: #eee; color: #111; }
       .modal     { background: #1e1e1e; color: #eee; }
-      .card-sem-capa { background: #333; }
-      .capa-preview { border-color: #555; }
     }
   </style>
 </head>
 <body>
 
-<header><a href="index.html" style="color:inherit;text-decoration:none;">Omnisentis</a> — Admin</header>
+<header><a href="index.html" style="color:inherit;text-decoration:none;">Stronghold Library</a> — Admin</header>
 
 <div class="container">
   <h2>Adicionar Livro</h2>
@@ -107,21 +70,10 @@
       <div class="tags-preview" id="tags-preview"></div>
     </div>
     <label class="file-label">
-      Escolher arquivo principal (PDF ou imagem)
+      Escolher arquivo (PDF ou imagem)
       <input type="file" id="arquivo" accept=".pdf,image/*">
     </label>
     <span id="file-name">Nenhum arquivo selecionado</span>
-
-    <!-- Campo de capa -->
-    <div class="capa-preview-wrap">
-      <label class="file-label">
-        Escolher capa do livro (imagem, opcional)
-        <input type="file" id="capa" accept="image/*">
-      </label>
-      <span id="capa-name">Nenhuma capa selecionada</span>
-      <img id="capa-preview" class="capa-preview" alt="Preview da capa">
-    </div>
-
     <button onclick="addLivro()" id="btn-enviar">Enviar Livro</button>
     <p id="status-msg" style="display:none"></p>
   </div>
@@ -136,21 +88,6 @@
 <div class="modal-overlay" id="modal-overlay" onclick="fecharModal(event)">
   <div class="modal">
     <h3>✏️ Editar Livro</h3>
-
-    <!-- Capa atual + trocar -->
-    <div class="capa-atual" id="edit-capa-atual" style="display:none">
-      <img id="edit-capa-img" src="" alt="Capa atual">
-      <span>Capa atual</span>
-    </div>
-    <div class="capa-preview-wrap">
-      <label class="file-label">
-        Trocar capa (opcional)
-        <input type="file" id="edit-capa" accept="image/*">
-      </label>
-      <span id="edit-capa-name">Nenhuma capa selecionada</span>
-      <img id="edit-capa-preview" class="capa-preview" alt="Nova capa">
-    </div>
-
     <input  id="edit-titulo"    placeholder="Título">
     <input  id="edit-autor"     placeholder="Autor">
     <textarea id="edit-descricao" placeholder="Descrição" rows="3"></textarea>
@@ -169,6 +106,7 @@
 <script>
 const API = "https://edischinho-github-io.onrender.com"
 
+// Token admin salvo no login
 function authHeader() {
   const token = localStorage.getItem("sl_admin_token") || ""
   return token ? { "Authorization": "Bearer " + token } : {}
@@ -177,48 +115,24 @@ let idEditando = null
 
 fetch(`${API}/`, { method: "GET", mode: "cors" }).catch(() => {})
 
-// ── Preview tags ──
+// ── Preview tags (formulário de adicionar) ──
 document.getElementById("tags").addEventListener("input", function () {
   const m = this.value.match(/#[\wÀ-ú]+/g) || []
   document.getElementById("tags-preview").innerHTML =
     m.map(t => `<span class="tag-pill">${t}</span>`).join("")
 })
+
+// ── Preview tags (modal de edição) ──
 document.getElementById("edit-tags").addEventListener("input", function () {
   const m = this.value.match(/#[\wÀ-ú]+/g) || []
   document.getElementById("edit-tags-preview").innerHTML =
     m.map(t => `<span class="tag-pill">${t}</span>`).join("")
 })
 
-// ── Nome do arquivo principal ──
+// ── Nome do arquivo ──
 document.getElementById("arquivo").addEventListener("change", function () {
   document.getElementById("file-name").textContent =
     this.files[0] ? this.files[0].name : "Nenhum arquivo selecionado"
-})
-
-// ── Preview da capa (adicionar) ──
-document.getElementById("capa").addEventListener("change", function () {
-  const file = this.files[0]
-  document.getElementById("capa-name").textContent = file ? file.name : "Nenhuma capa selecionada"
-  const preview = document.getElementById("capa-preview")
-  if (file) {
-    preview.src = URL.createObjectURL(file)
-    preview.classList.add("visivel")
-  } else {
-    preview.classList.remove("visivel")
-  }
-})
-
-// ── Preview da capa (editar) ──
-document.getElementById("edit-capa").addEventListener("change", function () {
-  const file = this.files[0]
-  document.getElementById("edit-capa-name").textContent = file ? file.name : "Nenhuma capa selecionada"
-  const preview = document.getElementById("edit-capa-preview")
-  if (file) {
-    preview.src = URL.createObjectURL(file)
-    preview.classList.add("visivel")
-  } else {
-    preview.classList.remove("visivel")
-  }
 })
 
 // ── Adicionar livro ──
@@ -228,7 +142,6 @@ async function addLivro() {
   const descricao = document.getElementById("descricao").value.trim()
   const tags      = document.getElementById("tags").value.trim()
   const arquivo   = document.getElementById("arquivo").files[0]
-  const capa      = document.getElementById("capa").files[0]
 
   if (!titulo)  { mostrarStatus("Digite o título do livro.", "erro"); return }
   if (!arquivo) { mostrarStatus("Selecione um arquivo.", "erro"); return }
@@ -239,7 +152,6 @@ async function addLivro() {
   formData.append("descricao", descricao)
   formData.append("tags", tags)
   formData.append("arquivo", arquivo)
-  if (capa) formData.append("capa", capa)
 
   const btn = document.getElementById("btn-enviar")
   btn.disabled = true; btn.textContent = "Enviando..."
@@ -254,12 +166,10 @@ async function addLivro() {
     const data = await res.json()
     if (data.status === "ok") {
       mostrarStatus("✅ Livro enviado com sucesso!", "ok")
-      ;["titulo","autor","descricao","tags","arquivo","capa"].forEach(id =>
+      ;["titulo","autor","descricao","tags","arquivo"].forEach(id =>
         document.getElementById(id).value = "")
       document.getElementById("tags-preview").innerHTML = ""
       document.getElementById("file-name").textContent = "Nenhum arquivo selecionado"
-      document.getElementById("capa-name").textContent = "Nenhuma capa selecionada"
-      document.getElementById("capa-preview").classList.remove("visivel")
       carregarLivrosAdmin()
     } else {
       mostrarStatus("Erro: " + data.message, "erro")
@@ -287,26 +197,21 @@ async function carregarLivrosAdmin(tentativa = 1) {
       const tagsPills = Array.isArray(l.tags) && l.tags.length
         ? l.tags.map(t => `<span class="tag-pill-admin">#${t}</span>`).join("")
         : ""
+      // Escapar aspas nos dados para passar inline no onclick
       const tituloEsc    = (l.titulo    || "").replace(/'/g, "\\'")
       const autorEsc     = (l.autor     || "").replace(/'/g, "\\'")
       const descricaoEsc = (l.descricao || "").replace(/'/g, "\\'")
-      const capaUrlEsc   = (l.capa_url  || "").replace(/'/g, "\\'")
       const tagsStr      = Array.isArray(l.tags) ? l.tags.map(t => "#"+t).join(" ") : ""
-
-      const capaHtml = l.capa_url
-        ? `<img class="card-capa" src="${l.capa_url}" alt="Capa">`
-        : `<div class="card-sem-capa">📚</div>`
 
       return `
         <div class="livro-admin-card">
-          ${capaHtml}
           <div style="flex:1">
             <strong>${l.titulo}</strong>
             ${l.autor ? `<span> — ${l.autor}</span>` : ""}
             <div style="margin-top:4px">${tagsPills}</div>
           </div>
           <a href="${l.arquivo_url}" target="_blank">🔗 Arquivo</a>
-          <button onclick="abrirModal(${l.id},'${tituloEsc}','${autorEsc}','${descricaoEsc}','${tagsStr}','${capaUrlEsc}')">✏️ Editar</button>
+          <button onclick="abrirModal(${l.id},'${tituloEsc}','${autorEsc}','${descricaoEsc}','${tagsStr}')">✏️ Editar</button>
           <button class="btn-del" onclick="deletarLivro(${l.id})">🗑 Remover</button>
         </div>
       `
@@ -323,26 +228,14 @@ async function carregarLivrosAdmin(tentativa = 1) {
 }
 
 // ── Modal: abrir ──
-function abrirModal(id, titulo, autor, descricao, tags, capaUrl) {
+function abrirModal(id, titulo, autor, descricao, tags) {
   idEditando = id
   document.getElementById("edit-titulo").value    = titulo
   document.getElementById("edit-autor").value     = autor
   document.getElementById("edit-descricao").value = descricao
   document.getElementById("edit-tags").value      = tags
-  document.getElementById("edit-capa").value      = ""
-  document.getElementById("edit-capa-name").textContent = "Nenhuma capa selecionada"
-  document.getElementById("edit-capa-preview").classList.remove("visivel")
 
-  // Mostrar capa atual se houver
-  const capaAtual = document.getElementById("edit-capa-atual")
-  const capaImg   = document.getElementById("edit-capa-img")
-  if (capaUrl) {
-    capaImg.src = capaUrl
-    capaAtual.style.display = "flex"
-  } else {
-    capaAtual.style.display = "none"
-  }
-
+  // Atualizar preview de tags no modal
   const m = tags.match(/#[\wÀ-ú]+/g) || []
   document.getElementById("edit-tags-preview").innerHTML =
     m.map(t => `<span class="tag-pill">${t}</span>`).join("")
@@ -351,12 +244,14 @@ function abrirModal(id, titulo, autor, descricao, tags, capaUrl) {
   document.getElementById("modal-overlay").classList.add("aberto")
 }
 
-// ── Modal: fechar ──
+// ── Modal: fechar (clique fora ou botão cancelar) ──
 function fecharModal(event) {
   if (event && event.target !== document.getElementById("modal-overlay")) return
   document.getElementById("modal-overlay").classList.remove("aberto")
   idEditando = null
 }
+
+// Fechar com Escape
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") fecharModal()
 })
@@ -369,40 +264,26 @@ async function salvarEdicao() {
   const autor     = document.getElementById("edit-autor").value.trim()
   const descricao = document.getElementById("edit-descricao").value.trim()
   const tags      = document.getElementById("edit-tags").value.trim()
-  const novaCapa  = document.getElementById("edit-capa").files[0]
 
-  if (!titulo) { mostrarEditStatus("O título não pode ficar vazio.", "erro"); return }
+  if (!titulo) {
+    mostrarEditStatus("O título não pode ficar vazio.", "erro")
+    return
+  }
 
   const btn = document.querySelector(".modal-btns button:last-child")
   btn.disabled = true; btn.textContent = "Salvando..."
 
   try {
-    // Se tem nova capa, envia como multipart
-    let res
-    if (novaCapa) {
-      const formData = new FormData()
-      formData.append("titulo", titulo)
-      formData.append("autor", autor)
-      formData.append("descricao", descricao)
-      formData.append("tags", tags)
-      formData.append("capa", novaCapa)
-      res = await fetch(`${API}/livros/${idEditando}`, {
-        method: "PATCH",
-        headers: { "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` },
-        body: formData
-      })
-    } else {
-      res = await fetch(`${API}/livros/${idEditando}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}`
-        },
-        body: JSON.stringify({ titulo, autor, descricao, tags })
-      })
-    }
-
+    const res  = await fetch(`${API}/livros/${idEditando}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}`
+      },
+      body: JSON.stringify({ titulo, autor, descricao, tags })
+    })
     const data = await res.json()
+
     if (data.status === "ok") {
       document.getElementById("modal-overlay").classList.remove("aberto")
       idEditando = null
@@ -410,7 +291,7 @@ async function salvarEdicao() {
     } else {
       mostrarEditStatus("Erro: " + data.message, "erro")
     }
-  } catch {
+  } catch (err) {
     mostrarEditStatus("Erro de conexão.", "erro")
   } finally {
     btn.disabled = false; btn.textContent = "💾 Salvar"
@@ -428,15 +309,17 @@ async function deletarLivro(id) {
     const data = await res.json()
     if (data.status === "ok") carregarLivrosAdmin()
     else alert("Erro ao remover: " + data.message)
-  } catch {
+  } catch (err) {
     alert("Erro de conexão.")
   }
 }
 
+// ── Helpers ──
 function mostrarStatus(msg, tipo) {
   const el = document.getElementById("status-msg")
   el.textContent = msg; el.className = tipo; el.style.display = "block"
 }
+
 function mostrarEditStatus(msg, tipo) {
   const el = document.getElementById("edit-status")
   el.textContent = msg; el.className = tipo; el.style.display = "block"
