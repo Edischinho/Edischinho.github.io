@@ -6,7 +6,6 @@ const { createClient } = require("@supabase/supabase-js")
 
 const app = express()
 
-// ── Segurança: headers HTTP ──
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options",    "nosniff")
   res.setHeader("X-Frame-Options",           "DENY")
@@ -17,17 +16,14 @@ app.use((req, res, next) => {
   next()
 })
 
-// ── CORS: apenas origens conhecidas ──
 const ORIGENS_PERMITIDAS = (process.env.ALLOWED_ORIGINS || "")
   .split(",").map(s => s.trim()).filter(Boolean)
 
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true)
-    if (ORIGENS_PERMITIDAS.length === 0 || ORIGENS_PERMITIDAS.includes(origin)) {
-      return cb(null, true)
-    }
-    cb(new Error("CORS bloqueado: origem não permitida"))
+    if (ORIGENS_PERMITIDAS.length === 0 || ORIGENS_PERMITIDAS.includes(origin)) return cb(null, true)
+    cb(new Error("CORS bloqueado"))
   },
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
@@ -35,82 +31,64 @@ app.use(cors({
 
 app.use(express.json({ limit: "1mb" }))
 
-// ── Credenciais — APENAS de variáveis de ambiente ──
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_KEY
 const ADMIN_TOKEN  = process.env.ADMIN_TOKEN
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error("ERRO: SUPABASE_URL e SUPABASE_KEY são obrigatórias.")
-  process.exit(1)
-}
-if (!ADMIN_TOKEN) {
-  console.warn("AVISO: ADMIN_TOKEN não definido — rotas admin estarão desprotegidas.")
-}
+if (!SUPABASE_URL || !SUPABASE_KEY) { console.error("ERRO: SUPABASE_URL e SUPABASE_KEY obrigatórias."); process.exit(1) }
+if (!ADMIN_TOKEN) console.warn("AVISO: ADMIN_TOKEN não definido.")
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
-
 if (!fs.existsSync("temp")) fs.mkdirSync("temp")
 
-// ── Middleware: verificar token admin ──
 function exigirAdmin(req, res, next) {
   if (!ADMIN_TOKEN) return next()
-  const auth  = req.headers["authorization"] || ""
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : ""
-  if (token !== ADMIN_TOKEN) {
-    return res.status(403).json({ status: "erro", message: "Acesso negado." })
-  }
+  const token = (req.headers["authorization"] || "").replace("Bearer ", "")
+  if (token !== ADMIN_TOKEN) return res.status(403).json({ status: "erro", message: "Acesso negado." })
   next()
 }
 
-// ── Middleware: verificar JWT Supabase do usuário ──
 async function exigirUsuario(req, res, next) {
-  const auth  = req.headers["authorization"] || ""
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : ""
+  const token = (req.headers["authorization"] || "").replace("Bearer ", "")
   if (!token) return res.status(401).json({ status: "erro", message: "Não autenticado." })
-
   try {
     const { data, error } = await supabase.auth.getUser(token)
-    if (error || !data?.user) throw new Error("Token inválido")
+    if (error || !data?.user) throw new Error()
     req.userId = data.user.id
     next()
   } catch {
-    res.status(401).json({ status: "erro", message: "Sessão inválida. Faça login novamente." })
+    res.status(401).json({ status: "erro", message: "Sessão inválida." })
   }
 }
 
-const upload = multer({
-  dest: "temp/",
-  limits: { fileSize: 50 * 1024 * 1024 }
-})
+const upload = multer({ dest: "temp/", limits: { fileSize: 50 * 1024 * 1024 } })
 
-// ─── ROTAS ────────────────────────────────────────────────
+async function uploadStorage(filePath, fileName, mimetype) {
+  const buf = fs.readFileSync(filePath)
+  const { error } = await supabase.storage.from("livros").upload(fileName, buf, { contentType: mimetype, upsert: false })
+  if (error) throw error
+  return supabase.storage.from("livros").getPublicUrl(fileName).data.publicUrl
+}
+
+// ─── ROTAS ───────────────────────────────────────────────
 
 app.get("/", (req, res) => res.json({ status: "ok" }))
 
-// ── Login admin ──
 app.post("/login", (req, res) => {
   const { user, password } = req.body
   const ADMIN_USER = process.env.ADMIN_USER || "admin"
   const ADMIN_PASS = process.env.ADMIN_PASS
-
-  if (!ADMIN_PASS) {
-    return res.status(500).json({ status: "erro", message: "Admin não configurado." })
-  }
+  if (!ADMIN_PASS) return res.status(500).json({ status: "erro", message: "Admin não configurado." })
   if (user === ADMIN_USER && password === ADMIN_PASS) {
     res.json({ status: "ok", role: "admin", token: ADMIN_TOKEN || "" })
   } else {
-    setTimeout(() => {
-      res.status(401).json({ status: "erro", message: "Credenciais inválidas." })
-    }, 500)
+    setTimeout(() => res.status(401).json({ status: "erro", message: "Credenciais inválidas." }), 500)
   }
 })
 
-// ── Listar livros (público) ──
 app.get("/livros", async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from("livros").select("*").order("id", { ascending: false })
+    const { data, error } = await supabase.from("livros").select("*").order("id", { ascending: false })
     if (error) throw error
     res.json(data)
   } catch {
@@ -118,45 +96,59 @@ app.get("/livros", async (req, res) => {
   }
 })
 
-// ── Adicionar livro (só admin) ──
-app.post("/addLivro", exigirAdmin, upload.single("arquivo"), async (req, res) => {
+// Adicionar livro — arquivo principal + capa opcional
+app.post("/addLivro", exigirAdmin, upload.fields([
+  { name: "arquivo", maxCount: 1 },
+  { name: "capa",    maxCount: 1 }
+]), async (req, res) => {
+  const arquivoFile = req.files?.arquivo?.[0]
+  const capaFile    = req.files?.capa?.[0]
   try {
     const { titulo, autor = "", descricao = "", tags: tagsRaw = "" } = req.body
     const tags = (tagsRaw.match(/#[\wÀ-ú]+/g) || []).map(t => t.slice(1).toLowerCase())
 
-    if (!req.file) return res.status(400).json({ status: "erro", message: "Nenhum arquivo enviado." })
-    if (!titulo)   return res.status(400).json({ status: "erro", message: "Título obrigatório." })
+    if (!arquivoFile) return res.status(400).json({ status: "erro", message: "Nenhum arquivo enviado." })
+    if (!titulo)      return res.status(400).json({ status: "erro", message: "Título obrigatório." })
 
-    const ext    = (req.file.originalname.split(".").pop() || "").toLowerCase()
+    const ext    = (arquivoFile.originalname.split(".").pop() || "").toLowerCase()
     const extsOk = ["pdf","png","jpg","jpeg","webp"]
     if (!extsOk.includes(ext)) {
-      fs.unlinkSync(req.file.path)
+      fs.unlinkSync(arquivoFile.path)
+      if (capaFile) fs.unlinkSync(capaFile.path)
       return res.status(400).json({ status: "erro", message: "Tipo de arquivo não permitido." })
     }
 
-    const fileName   = `${Date.now()}-${titulo.replace(/[^a-zA-Z0-9À-ú]/g,"_")}.${ext}`
-    const fileBuffer = fs.readFileSync(req.file.path)
+    const nomeArquivo = `${Date.now()}-${titulo.replace(/[^a-zA-Z0-9À-ú]/g,"_")}.${ext}`
+    const publicUrl   = await uploadStorage(arquivoFile.path, nomeArquivo, arquivoFile.mimetype)
+    fs.unlinkSync(arquivoFile.path)
 
-    const { error: uploadError } = await supabase.storage
-      .from("livros").upload(fileName, fileBuffer, { contentType: req.file.mimetype, upsert: false })
-    if (uploadError) throw uploadError
+    let capaUrl = null
+    if (capaFile) {
+      const extCapa = (capaFile.originalname.split(".").pop() || "").toLowerCase()
+      if (["png","jpg","jpeg","webp"].includes(extCapa)) {
+        const nomeCapa = `capa-${Date.now()}-${titulo.replace(/[^a-zA-Z0-9À-ú]/g,"_")}.${extCapa}`
+        capaUrl = await uploadStorage(capaFile.path, nomeCapa, capaFile.mimetype)
+      }
+      fs.unlinkSync(capaFile.path)
+    }
 
-    const publicUrl = supabase.storage.from("livros").getPublicUrl(fileName).data.publicUrl
-
-    const { error: dbError } = await supabase
-      .from("livros").insert([{ titulo, autor, descricao, tags, arquivo_url: publicUrl }])
+    const { error: dbError } = await supabase.from("livros")
+      .insert([{ titulo, autor, descricao, tags, arquivo_url: publicUrl, capa_url: capaUrl }])
     if (dbError) throw dbError
 
-    fs.unlinkSync(req.file.path)
-    res.json({ status: "ok", url: publicUrl })
-  } catch (err) {
-    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path)
+    res.json({ status: "ok", url: publicUrl, capa_url: capaUrl })
+  } catch {
+    if (arquivoFile && fs.existsSync(arquivoFile.path)) fs.unlinkSync(arquivoFile.path)
+    if (capaFile    && fs.existsSync(capaFile.path))    fs.unlinkSync(capaFile.path)
     res.status(500).json({ status: "erro", message: "Erro ao adicionar livro." })
   }
 })
 
-// ── Editar livro (só admin) ──
-app.patch("/livros/:id", exigirAdmin, async (req, res) => {
+// Editar livro — JSON ou multipart (com nova capa)
+app.patch("/livros/:id", exigirAdmin, upload.fields([
+  { name: "capa", maxCount: 1 }
+]), async (req, res) => {
+  const capaFile = req.files?.capa?.[0]
   try {
     const { id } = req.params
     if (!/^\d+$/.test(id)) return res.status(400).json({ status: "erro", message: "ID inválido." })
@@ -169,6 +161,15 @@ app.patch("/livros/:id", exigirAdmin, async (req, res) => {
     if (tagsRaw   !== undefined)
       updates.tags = (tagsRaw.match(/#[\wÀ-ú]+/g) || []).map(t => t.slice(1).toLowerCase())
 
+    if (capaFile) {
+      const extCapa = (capaFile.originalname.split(".").pop() || "").toLowerCase()
+      if (["png","jpg","jpeg","webp"].includes(extCapa)) {
+        const nomeCapa = `capa-${Date.now()}.${extCapa}`
+        updates.capa_url = await uploadStorage(capaFile.path, nomeCapa, capaFile.mimetype)
+      }
+      fs.unlinkSync(capaFile.path)
+    }
+
     if (!Object.keys(updates).length)
       return res.status(400).json({ status: "erro", message: "Nada para atualizar." })
 
@@ -176,22 +177,22 @@ app.patch("/livros/:id", exigirAdmin, async (req, res) => {
     if (error) throw error
     res.json({ status: "ok" })
   } catch {
+    if (capaFile && fs.existsSync(capaFile.path)) fs.unlinkSync(capaFile.path)
     res.status(500).json({ status: "erro", message: "Erro ao editar livro." })
   }
 })
 
-// ── Deletar livro (só admin) ──
 app.delete("/livros/:id", exigirAdmin, async (req, res) => {
   try {
     const { id } = req.params
     if (!/^\d+$/.test(id)) return res.status(400).json({ status: "erro", message: "ID inválido." })
 
     const { data: livro, error: fetchError } = await supabase
-      .from("livros").select("arquivo_url").eq("id", id).single()
+      .from("livros").select("arquivo_url, capa_url").eq("id", id).single()
     if (fetchError) throw fetchError
 
-    const fileName = livro.arquivo_url.split("/").pop()
-    await supabase.storage.from("livros").remove([fileName])
+    const arquivos = [livro.arquivo_url, livro.capa_url].filter(Boolean).map(u => u.split("/").pop())
+    if (arquivos.length) await supabase.storage.from("livros").remove(arquivos)
 
     const { error: deleteError } = await supabase.from("livros").delete().eq("id", id)
     if (deleteError) throw deleteError
@@ -208,10 +209,8 @@ app.get("/anotacoes", exigirUsuario, async (req, res) => {
   if (!livro_url) return res.status(400).json({ status: "erro", message: "livro_url obrigatório." })
   try {
     const urlDec = decodeURIComponent(livro_url)
-    const urlEnc = encodeURIComponent(urlDec)
-    const { data, error } = await supabase
-      .from("anotacoes").select("pagina, texto")
-      .eq("user_id", req.userId).in("livro_url", [urlDec, urlEnc, livro_url])
+    const { data, error } = await supabase.from("anotacoes").select("pagina, texto")
+      .eq("user_id", req.userId).in("livro_url", [urlDec, encodeURIComponent(urlDec), livro_url])
     if (error) throw error
     const mapa = {}
     data.forEach(a => { mapa[a.pagina] = a.texto })
@@ -227,9 +226,8 @@ app.post("/anotacoes", exigirUsuario, async (req, res) => {
   const urlNorm = decodeURIComponent(livro_url)
   try {
     if (!texto || !String(texto).trim()) {
-      const urlEnc = encodeURIComponent(urlNorm)
       await supabase.from("anotacoes").delete()
-        .eq("user_id", req.userId).in("livro_url", [urlNorm, urlEnc]).eq("pagina", pagina)
+        .eq("user_id", req.userId).in("livro_url", [urlNorm, encodeURIComponent(urlNorm)]).eq("pagina", pagina)
     } else {
       const { error } = await supabase.from("anotacoes")
         .upsert({ user_id: req.userId, livro_url: urlNorm, pagina, texto: String(texto).slice(0,5000) },
@@ -262,8 +260,7 @@ app.post("/highlights", exigirUsuario, async (req, res) => {
   if (!hl_id || !livro_url || !pagina) return res.status(400).json({ status: "erro", message: "Parâmetros faltando." })
   try {
     const { error } = await supabase.from("highlights")
-      .upsert({ hl_id, user_id: req.userId, livro_url, pagina, cor, nota, img_data },
-               { onConflict: "hl_id" })
+      .upsert({ hl_id, user_id: req.userId, livro_url, pagina, cor, nota, img_data }, { onConflict: "hl_id" })
     if (error) throw error
     res.json({ status: "ok" })
   } catch {
@@ -310,7 +307,6 @@ app.get("/progresso", exigirUsuario, async (req, res) => {
   }
 })
 
-// ── 404 ──
 app.use((req, res) => res.status(404).json({ status: "erro", message: "Rota não encontrada." }))
 
 const PORT = process.env.PORT || 3000
