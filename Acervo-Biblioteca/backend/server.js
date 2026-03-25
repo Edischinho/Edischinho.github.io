@@ -65,7 +65,7 @@ const upload = multer({ dest: "temp/", limits: { fileSize: 50 * 1024 * 1024 } })
 
 async function uploadStorage(filePath, fileName, mimetype) {
   const buf = fs.readFileSync(filePath)
-  const { error } = await supabase.storage.from("livros").upload(fileName, buf, { contentType: mimetype, upsert: false })
+  const { error } = await supabase.storage.from("livros").upload(fileName, buf, { contentType: mimetype, upsert: true })
   if (error) throw error
   return supabase.storage.from("livros").getPublicUrl(fileName).data.publicUrl
 }
@@ -137,10 +137,11 @@ app.post("/addLivro", exigirAdmin, upload.fields([
     if (dbError) throw dbError
 
     res.json({ status: "ok", url: publicUrl, capa_url: capaUrl })
-  } catch {
+  } catch (err) {
+    console.error("Erro addLivro:", err)
     if (arquivoFile && fs.existsSync(arquivoFile.path)) fs.unlinkSync(arquivoFile.path)
     if (capaFile    && fs.existsSync(capaFile.path))    fs.unlinkSync(capaFile.path)
-    res.status(500).json({ status: "erro", message: "Erro ao adicionar livro." })
+    res.status(500).json({ status: "erro", message: "Erro ao adicionar livro: " + err.message })
   }
 })
 
