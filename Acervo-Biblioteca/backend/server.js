@@ -65,7 +65,9 @@ const upload = multer({ dest: "temp/", limits: { fileSize: 50 * 1024 * 1024 } })
 
 async function uploadStorage(filePath, fileName, mimetype) {
   const buf = fs.readFileSync(filePath)
-  const { error } = await supabase.storage.from("livros").upload(fileName, buf, { contentType: mimetype, upsert: true })
+  console.log("Tentando upload:", fileName, mimetype, buf.length, "bytes")
+  const { data, error } = await supabase.storage.from("livros").upload(fileName, buf, { contentType: mimetype, upsert: true })
+  console.log("Resultado upload:", JSON.stringify(error || data))
   if (error) throw error
   return supabase.storage.from("livros").getPublicUrl(fileName).data.publicUrl
 }
