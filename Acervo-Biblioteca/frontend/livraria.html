@@ -245,7 +245,7 @@ carregarLivros()
     wrap.innerHTML = `<button onclick="location.href='login.html'" style="background:#fff;color:#111;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:bold;cursor:pointer;">Entrar</button>`
   }
 
-  async function sair() {
+  window.sair = async function() {
     try { await _s.auth.signOut() } catch {}
     localStorage.clear()
     sessionStorage.clear()
