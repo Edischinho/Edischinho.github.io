@@ -245,8 +245,9 @@ carregarLivros()
     wrap.innerHTML = `<button onclick="location.href='login.html'" style="background:#fff;color:#111;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:bold;cursor:pointer;">Entrar</button>`
   }
 
-  function sair() {
-    _s.auth.signOut(); ["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
+  async function sair() {
+    await _s.auth.signOut()
+    ;["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
     location.reload()
   }
 })()
