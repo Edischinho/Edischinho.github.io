@@ -1326,8 +1326,9 @@
   })
 
   async function sairConta() {
-    await _supa.auth.signOut()
-    ;["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
+    try { await _supa.auth.signOut() } catch {}
+    localStorage.clear()
+    sessionStorage.clear()
     location.href = "index.html"
   }
   window.sairConta = sairConta
