@@ -351,9 +351,10 @@
   }
 
   async function sair() {
-    await _s.auth.signOut()
-    ;["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
-    location.reload()
+    try { await _s.auth.signOut() } catch {}
+    localStorage.clear()
+    sessionStorage.clear()
+    location.href = "index.html"
   }
 
   window.irCalendario = function() {
