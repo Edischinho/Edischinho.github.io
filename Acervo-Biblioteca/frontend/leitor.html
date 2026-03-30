@@ -1326,13 +1326,31 @@
   })
 
   async function sairConta() {
-    try { await _supa.auth.signOut() } catch {}
-    localStorage.clear()
-    sessionStorage.clear()
+    await _supa.auth.signOut()
+    ;["sl_role","sl_username"].forEach(k => localStorage.removeItem(k))
     location.href = "index.html"
   }
   window.sairConta = sairConta
+  window.salvarNota        = salvarNota
+  window.apagarNota        = apagarNota
+  window.toggleDrawer      = toggleDrawer
+  window.fecharDrawer      = fecharDrawer
+  window.trocarAbaDrawer   = trocarAbaDrawer
+  window.irParaPagina      = irParaPagina
+  window.toggleModoHL      = toggleModoHL
+  window.selecionarCor     = selecionarCor
+  window.baixarPDF         = baixarPDF
+  window.deletarHLAtual    = deletarHLAtual
+  window.exportarTodas     = exportarTodas
+  window.exportarUma       = exportarUma
+  window.fecharModalExp    = fecharModalExp
+  window.fecharModalExpOverlay = fecharModalExpOverlay
+  window.baixarTxt         = baixarTxt
+  window.irParaNota        = irParaNota
+  window.irParaHL          = irParaHL
+  window.deletarHL         = deletarHL
 })()
+
 </script>
 
 </body>
