@@ -329,7 +329,7 @@
       <div class="modal-desc"   id="modal-desc"></div>
       <div class="modal-tags"   id="modal-tags"></div>
       <div class="modal-relacionados" id="modal-relacionados" style="display:none">
-        <div class="modal-rel-titulo">🔗 Links relacionados</div>
+        <div class="modal-rel-titulo">📚 Arquivos relacionados</div>
         <div id="modal-rel-links"></div>
       </div>
     </div>
@@ -434,13 +434,42 @@ function renderVideos(lista) {
   lista.forEach(v => grid.appendChild(criarCardVideo(v)))
 }
 
+// ── Extrair thumbnail automática ──
+function getThumbnail(v) {
+  if (v.capa_url) return { type: "img", src: v.capa_url }
+  // YouTube
+  if (v.link_externo) {
+    const ytMatch = v.link_externo.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)
+    if (ytMatch) return { type: "img", src: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg` }
+  }
+  // Vídeo hospedado — gera thumbnail via canvas
+  if (v.video_url) return { type: "video", src: v.video_url }
+  return { type: "placeholder" }
+}
+
 function criarCardVideo(v) {
   const card = document.createElement("div")
   card.className = "video-card"
 
-  const thumbHtml = v.capa_url
-    ? `<img class="video-thumb" src="${v.capa_url}" alt="${v.titulo}" loading="lazy">`
-    : `<div class="video-thumb-placeholder">🎬</div>`
+  const thumb = getThumbnail(v)
+  let thumbHtml
+  if (thumb.type === "img") {
+    thumbHtml = `<img class="video-thumb" src="${thumb.src}" alt="${v.titulo}" loading="lazy"
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    thumbHtml += `<div class="video-thumb-placeholder" style="display:none">🎬</div>`
+  } else if (thumb.type === "video") {
+    // Captura frame do vídeo via canvas
+    thumbHtml = `
+      <video class="video-thumb" src="${thumb.src}" preload="metadata" muted
+        style="object-fit:cover;width:100%;height:100%;"
+        onloadedmetadata="this.currentTime=1"
+        onseeked="capturarFrame(this)"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"></video>
+      <div class="video-thumb-placeholder" style="display:none">🎬</div>
+    `
+  } else {
+    thumbHtml = `<div class="video-thumb-placeholder">🎬</div>`
+  }
 
   const isExterno = !!v.link_externo
   const tagBadge  = isExterno ? `<span class="video-tag-link">🔗 Link</span>` : ""
@@ -514,21 +543,38 @@ function abrirPlayer(v) {
     wrap.appendChild(video)
   }
 
-  // Links relacionados
-  const relWrap = document.getElementById("modal-relacionados")
+  // Relacionados — livros da livraria
+  const relWrap  = document.getElementById("modal-relacionados")
   const relLinks = document.getElementById("modal-rel-links")
+  relLinks.innerHTML = ""
+  relWrap.style.display = "none"
+
   if (v.links_relacionados) {
-    const links = v.links_relacionados.split("\n").map(l => l.trim()).filter(Boolean)
-    if (links.length) {
-      relLinks.innerHTML = links.map(l =>
-        `<a class="modal-rel-link" href="${l}" target="_blank">🔗 ${l.slice(0, 50)}${l.length > 50 ? "…" : ""}</a>`
-      ).join("")
-      relWrap.style.display = "block"
-    } else {
-      relWrap.style.display = "none"
+    const ids = v.links_relacionados.split(",").map(Number).filter(n => !isNaN(n) && n > 0)
+    if (ids.length) {
+      // Buscar livros correspondentes
+      fetch(`${API}/livros`).then(r => r.json()).then(todosLivros => {
+        const livrosRel = todosLivros.filter(l => ids.includes(l.id))
+        if (!livrosRel.length) return
+        relLinks.innerHTML = livrosRel.map(l => {
+          const isPDF = l.arquivo_url && l.arquivo_url.toLowerCase().endsWith(".pdf")
+          const href  = isPDF ? `leitor.html?pdf=${encodeURIComponent(l.arquivo_url)}` : l.arquivo_url
+          const capaHtml = l.capa_url
+            ? `<img src="${l.capa_url}" style="width:36px;height:50px;object-fit:cover;border-radius:4px;flex-shrink:0;">`
+            : `<span style="font-size:24px;">📄</span>`
+          return `
+            <a class="modal-rel-link" href="${href}" target="_blank" style="align-items:center;">
+              ${capaHtml}
+              <div>
+                <div style="font-weight:bold;font-size:13px;">${l.titulo}</div>
+                ${l.autor ? `<div style="font-size:11px;color:#aaa;">${l.autor}</div>` : ""}
+              </div>
+            </a>
+          `
+        }).join("")
+        relWrap.style.display = "block"
+      }).catch(() => {})
     }
-  } else {
-    relWrap.style.display = "none"
   }
 
   document.getElementById("modal-player").classList.add("aberto")
@@ -548,7 +594,20 @@ function fecharPlayerOverlay(e) {
   if (e.target === document.getElementById("modal-player")) fecharPlayer()
 }
 
-// ── Filtrar ──
+// Captura frame do vídeo e coloca no lugar da tag video
+function capturarFrame(videoEl) {
+  try {
+    const canvas = document.createElement("canvas")
+    canvas.width  = videoEl.videoWidth  || 320
+    canvas.height = videoEl.videoHeight || 180
+    canvas.getContext("2d").drawImage(videoEl, 0, 0, canvas.width, canvas.height)
+    const img = document.createElement("img")
+    img.className = "video-thumb"
+    img.src = canvas.toDataURL("image/jpeg", 0.8)
+    img.style.cssText = "object-fit:cover;width:100%;height:100%;"
+    videoEl.replaceWith(img)
+  } catch {}
+}
 function filtrar() {
   const q = document.getElementById("busca-input").value.trim().toLowerCase()
   if (!q) { renderVideos(videos); return }
