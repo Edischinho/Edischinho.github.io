@@ -84,37 +84,7 @@
     }
     .capa-atual span { font-size: 13px; color: #888; }
 
-    /* ── Seleção em área (multi-delete) ── */
-    .sel-barra {
-      display: none; align-items: center; gap: 12px;
-      padding: 10px 14px; background: #222; color: #eee;
-      border-radius: 8px; margin-bottom: 10px; font-size: 13px;
-    }
-    .sel-barra.visivel { display: flex; }
-    .sel-barra-count { font-weight: bold; flex: 1; }
-    .btn-del-sel {
-      background: #c0392b; color: #fff; border: none; border-radius: 6px;
-      padding: 6px 14px; font-size: 13px; cursor: pointer;
-    }
-    .btn-del-sel:hover { background: #e74c3c; }
-    .btn-cancel-sel {
-      background: #444; color: #eee; border: none; border-radius: 6px;
-      padding: 6px 14px; font-size: 13px; cursor: pointer;
-    }
-    .btn-cancel-sel:hover { background: #555; }
-    .livro-admin-card.selecionado {
-      outline: 2px solid #ffd700;
-      background: rgba(255,215,0,0.06);
-    }
-    .card-checkbox {
-      width: 18px; height: 18px; accent-color: #ffd700;
-      cursor: pointer; flex-shrink: 0;
-    }
-    .sel-rubber-admin {
-      position: fixed; border: 2px solid #ffd700;
-      background: rgba(255,215,0,0.08); pointer-events: none;
-      z-index: 9999; display: none;
-    }
+    /* ── Importar Playlist ── */
     .import-abas {
       display: flex; gap: 0; margin-bottom: 16px;
       border: 1px solid #ccc; border-radius: 8px; overflow: hidden;
@@ -298,11 +268,6 @@
 
   <hr>
   <h2>Vídeos Cadastrados</h2>
-  <div class="sel-barra" id="v-sel-barra">
-    <span class="sel-barra-count" id="v-sel-count">0 selecionados</span>
-    <button class="btn-del-sel" onclick="deletarVideosSelecionados()">🗑 Remover selecionados</button>
-    <button class="btn-cancel-sel" onclick="cancelarSelecaoVideos()">✕ Cancelar</button>
-  </div>
   <div id="videos-admin"></div>
 
   <hr>
@@ -469,9 +434,8 @@
   </div>
 </div>
 
-<div class="sel-rubber-admin" id="sel-rubber-admin"></div>
-
 <script>
+const API = "https://edischinho-github-io.onrender.com"
 
 function authHeader() {
   const token = localStorage.getItem("sl_admin_token") || ""
@@ -969,19 +933,13 @@ async function addVideo() {
   xhr.send(formData)
 }
 
-let videosSelecionados = new Set()
-let lastClickedVideo   = null
-
 async function carregarVideosAdmin(tentativa = 1) {
   const div = document.getElementById("videos-admin")
-  videosSelecionados.clear()
-  atualizarBarraSelVideo()
   try {
     const res    = await fetch(`${API}/videos`)
     const videos = await res.json()
     if (!videos.length) { div.innerHTML = "<p>Nenhum vídeo cadastrado ainda.</p>"; return }
-    div.innerHTML = ""
-    videos.forEach(v => {
+    div.innerHTML = videos.map(v => {
       const tituloEsc   = (v.titulo || "").replace(/'/g, "\\'")
       const autorEsc    = (v.autor  || "").replace(/'/g, "\\'")
       const descEsc     = (v.descricao || "").replace(/'/g, "\\'")
@@ -995,140 +953,25 @@ async function carregarVideosAdmin(tentativa = 1) {
       const capaHtml    = v.capa_url
         ? `<img class="card-capa" src="${v.capa_url}" alt="Capa">`
         : `<div class="card-sem-capa">🎬</div>`
-
-      const card = document.createElement("div")
-      card.className = "livro-admin-card"
-      card.dataset.id = v.id
-      card.innerHTML = `
-        <input type="checkbox" class="card-checkbox" onclick="event.stopPropagation();toggleVideoSel(${v.id}, event)">
-        ${capaHtml}
-        <div style="flex:1">
-          <strong>${v.titulo}</strong>
-          ${v.autor ? `<span> — ${v.autor}</span>` : ""}
-          ${v.link_externo ? `<span style="font-size:11px;color:#888;"> · 🔗 Link</span>` : ""}
-          <div style="margin-top:4px">${tagsPills}</div>
+      return `
+        <div class="livro-admin-card">
+          ${capaHtml}
+          <div style="flex:1">
+            <strong>${v.titulo}</strong>
+            ${v.autor ? `<span> — ${v.autor}</span>` : ""}
+            ${v.link_externo ? `<span style="font-size:11px;color:#888;"> · 🔗 Link</span>` : ""}
+            <div style="margin-top:4px">${tagsPills}</div>
+          </div>
+          ${v.video_url ? `<a href="${v.video_url}" target="_blank">▶ Ver</a>` : ""}
+          <button onclick="abrirModalVideo(${v.id},'${tituloEsc}','${autorEsc}','${descEsc}','${tagsStr}','${capaEsc}','${linkEsc}','${linksRelEsc}','${plLinkEsc}')">✏️ Editar</button>
+          <button class="btn-del" onclick="deletarVideo(${v.id})">🗑 Remover</button>
         </div>
-        ${v.video_url ? `<a href="${v.video_url}" target="_blank">▶ Ver</a>` : ""}
-        <button onclick="event.stopPropagation();abrirModalVideo(${v.id},'${tituloEsc}','${autorEsc}','${descEsc}','${tagsStr}','${capaEsc}','${linkEsc}','${linksRelEsc}','${plLinkEsc}')">✏️ Editar</button>
-        <button class="btn-del" onclick="event.stopPropagation();deletarVideo(${v.id})">🗑</button>
       `
-      // Clicar no card seleciona (com suporte a shift+click)
-      card.addEventListener("click", e => {
-        if (e.target.tagName === "BUTTON" || e.target.tagName === "A" || e.target.tagName === "INPUT") return
-        toggleVideoSel(v.id, e)
-      })
-      div.appendChild(card)
-    })
-    iniciarRubberBandAdmin(div)
+    }).join("")
   } catch {
     if (tentativa < 4) setTimeout(() => carregarVideosAdmin(tentativa + 1), tentativa * 3000)
     else div.innerHTML = `<p>Erro ao carregar vídeos. <button onclick="carregarVideosAdmin()">🔄 Tentar</button></p>`
   }
-}
-
-function toggleVideoSel(id, e) {
-  if (e?.shiftKey && lastClickedVideo !== null) {
-    const cards = [...document.querySelectorAll("#videos-admin .livro-admin-card")]
-    const ids = cards.map(c => parseInt(c.dataset.id))
-    const a = ids.indexOf(lastClickedVideo)
-    const b = ids.indexOf(id)
-    const [from, to] = a < b ? [a, b] : [b, a]
-    for (let i = from; i <= to; i++) videosSelecionados.add(ids[i])
-  } else {
-    if (videosSelecionados.has(id)) videosSelecionados.delete(id)
-    else videosSelecionados.add(id)
-  }
-  lastClickedVideo = id
-  atualizarBarraSelVideo()
-}
-
-function atualizarBarraSelVideo() {
-  const n = videosSelecionados.size
-  document.getElementById("v-sel-barra").classList.toggle("visivel", n > 0)
-  document.getElementById("v-sel-count").textContent = `${n} vídeo${n !== 1 ? "s" : ""} selecionado${n !== 1 ? "s" : ""}`
-  document.querySelectorAll("#videos-admin .livro-admin-card").forEach(card => {
-    const id = parseInt(card.dataset.id)
-    card.classList.toggle("selecionado", videosSelecionados.has(id))
-    const cb = card.querySelector(".card-checkbox")
-    if (cb) cb.checked = videosSelecionados.has(id)
-  })
-}
-
-function cancelarSelecaoVideos() {
-  videosSelecionados.clear()
-  lastClickedVideo = null
-  atualizarBarraSelVideo()
-}
-
-async function deletarVideosSelecionados() {
-  const n = videosSelecionados.size
-  if (!n) return
-  if (!confirm(`Remover ${n} vídeo${n !== 1 ? "s" : ""}?`)) return
-  const ids = [...videosSelecionados]
-  let ok = 0
-  for (const id of ids) {
-    try {
-      const res = await fetch(`${API}/videos/${id}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` }
-      })
-      const data = await res.json()
-      if (data.status === "ok") ok++
-    } catch {}
-  }
-  videosSelecionados.clear()
-  carregarVideosAdmin()
-  if (ok < ids.length) alert(`${ok}/${ids.length} removidos com sucesso.`)
-}
-
-function iniciarRubberBandAdmin(container) {
-  const rubber = document.getElementById("sel-rubber-admin")
-  let dragging = false, startX, startY
-
-  container.addEventListener("mousedown", e => {
-    if (e.button !== 0) return
-    if (e.target.closest("button") || e.target.closest("a") || e.target.closest("input")) return
-    if (e.target.closest(".livro-admin-card")) return
-    dragging = true
-    startX = e.clientX; startY = e.clientY
-    rubber.style.cssText = `display:block;left:${startX}px;top:${startY}px;width:0;height:0;`
-    e.preventDefault()
-  })
-
-  document.addEventListener("mousemove", e => {
-    if (!dragging) return
-    const x = Math.min(e.clientX, startX)
-    const y = Math.min(e.clientY, startY)
-    const w = Math.abs(e.clientX - startX)
-    const h = Math.abs(e.clientY - startY)
-    rubber.style.cssText = `display:block;left:${x}px;top:${y}px;width:${w}px;height:${h}px;`
-    const rect = { left: x, right: x+w, top: y, bottom: y+h }
-    document.querySelectorAll("#videos-admin .livro-admin-card").forEach(card => {
-      const r = card.getBoundingClientRect()
-      const hit = r.left < rect.right && r.right > rect.left && r.top < rect.bottom && r.bottom > rect.top
-      card.style.outline = hit ? "2px solid #ffd700" : ""
-    })
-  })
-
-  document.addEventListener("mouseup", e => {
-    if (!dragging) return
-    dragging = false
-    rubber.style.display = "none"
-    const x = Math.min(e.clientX, startX)
-    const y = Math.min(e.clientY, startY)
-    const w = Math.abs(e.clientX - startX)
-    const h = Math.abs(e.clientY - startY)
-    if (w < 5 && h < 5) return
-    const rect = { left: x, right: x+w, top: y, bottom: y+h }
-    document.querySelectorAll("#videos-admin .livro-admin-card").forEach(card => {
-      card.style.outline = ""
-      const r = card.getBoundingClientRect()
-      if (r.left < rect.right && r.right > rect.left && r.top < rect.bottom && r.bottom > rect.top) {
-        videosSelecionados.add(parseInt(card.dataset.id))
-      }
-    })
-    atualizarBarraSelVideo()
-  })
 }
 
 function abrirModalVideo(id, titulo, autor, desc, tags, capaUrl, link, linksRel, plLink) {
