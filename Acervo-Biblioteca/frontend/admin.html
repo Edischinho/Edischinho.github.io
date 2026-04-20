@@ -84,9 +84,32 @@
     }
     .capa-atual span { font-size: 13px; color: #888; }
 
+    /* ── Seletor de livros relacionados ── */
+    .livro-rel-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; border-radius: 5px; cursor: pointer;
+      transition: background 0.1s; font-size: 13px;
+    }
+    .livro-rel-item:hover { background: #e8e8e8; }
+    .livro-rel-item.selecionado { background: #d4edda; }
+    .livro-rel-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #222; color: #eee; border-radius: 20px;
+      padding: 4px 10px; font-size: 12px;
+    }
+    .livro-rel-pill button {
+      background: none; border: none; color: #aaa;
+      font-size: 14px; cursor: pointer; padding: 0; line-height: 1;
+    }
+    .livro-rel-pill button:hover { color: #f88; }
+
     @media (prefers-color-scheme: dark) {
-      .tag-pill  { background: #eee; color: #111; }
-      .modal     { background: #1e1e1e; color: #eee; }
+      .livro-rel-item:hover     { background: #2a2a2a; }
+      .livro-rel-item.selecionado { background: #1a3a1a; }
+      #v-livros-lista, #edit-v-livros-lista {
+        background: #1e1e1e !important; border-color: #444 !important;
+      }
+    }
       .card-sem-capa { background: #333; }
       .capa-preview { border-color: #555; }
     }
@@ -165,8 +188,14 @@
       <img id="v-capa-preview" class="capa-preview" alt="Preview da capa">
     </div>
 
-    <!-- Links relacionados -->
-    <textarea id="v-links-rel" placeholder="Links relacionados (um por linha, opcional)" rows="3"></textarea>
+    <!-- Arquivos relacionados da livraria -->
+    <div style="margin-bottom:10px;">
+      <label style="font-size:13px;color:#666;display:block;margin-bottom:6px;">📚 Arquivos relacionados da livraria:</label>
+      <input id="v-livros-busca" placeholder="Buscar livro pelo título..." style="margin-bottom:6px;"
+        oninput="filtrarLivrosRel('v-livros-lista', this.value)">
+      <div id="v-livros-lista" style="max-height:160px;overflow-y:auto;border:1px solid #ccc;border-radius:5px;padding:6px;background:#f9f9f9;display:none;"></div>
+      <div id="v-livros-sel" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
+    </div>
 
     <!-- Playlist link -->
     <input id="v-playlist-link" placeholder="Link de playlist (opcional)">
@@ -215,7 +244,14 @@
       <div class="tags-preview" id="edit-v-tags-preview"></div>
     </div>
     <input id="edit-v-link"      placeholder="Link externo (YouTube, etc.)">
-    <textarea id="edit-v-links-rel" placeholder="Links relacionados (um por linha)" rows="3"></textarea>
+    <!-- Arquivos relacionados da livraria -->
+    <div style="margin-bottom:10px;">
+      <label style="font-size:13px;color:#666;display:block;margin-bottom:6px;">📚 Arquivos relacionados da livraria:</label>
+      <input id="edit-v-livros-busca" placeholder="Buscar livro pelo título..."
+        oninput="filtrarLivrosRel('edit-v-livros-lista', this.value)" style="margin-bottom:6px;">
+      <div id="edit-v-livros-lista" style="max-height:160px;overflow-y:auto;border:1px solid #ccc;border-radius:5px;padding:6px;background:#f9f9f9;display:none;"></div>
+      <div id="edit-v-livros-sel" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
+    </div>
     <input id="edit-v-playlist-link" placeholder="Link de playlist">
     <div class="modal-btns">
       <button class="btn-cancelar" onclick="fecharModalVideo()">Cancelar</button>
@@ -567,6 +603,89 @@ carregarLivrosAdmin()
 //  VÍDEOS
 // ════════════════════════════════════════════════
 let idVideoEditando = null
+let todosLivros     = []       // cache da livraria para o seletor
+let livrosSelecionados     = [] // IDs selecionados no form de adicionar
+let livrosSelecionadosEdit = [] // IDs selecionados no modal de edição
+
+// Carrega livros para o seletor (uma só vez)
+async function carregarLivrosParaSeletor() {
+  if (todosLivros.length) return
+  try {
+    const res = await fetch(`${API}/livros`)
+    todosLivros = await res.json()
+  } catch {}
+}
+
+// Filtrar lista de livros ao digitar
+function filtrarLivrosRel(listaId, query) {
+  const lista = document.getElementById(listaId)
+  if (!query.trim()) { lista.style.display = "none"; return }
+  const q = query.toLowerCase()
+  const filtrados = todosLivros.filter(l =>
+    l.titulo.toLowerCase().includes(q) || (l.autor || "").toLowerCase().includes(q)
+  )
+  lista.style.display = "block"
+  lista.innerHTML = ""
+  if (!filtrados.length) {
+    lista.innerHTML = '<div style="font-size:12px;color:#888;padding:4px;">Nenhum livro encontrado.</div>'
+    return
+  }
+  const selAtual = listaId.startsWith("edit") ? livrosSelecionadosEdit : livrosSelecionados
+  const selId    = listaId.startsWith("edit") ? "edit-v-livros-sel"    : "v-livros-sel"
+  filtrados.forEach(l => {
+    const div = document.createElement("div")
+    div.className = "livro-rel-item" + (selAtual.includes(l.id) ? " selecionado" : "")
+    div.innerHTML = `
+      <span>${selAtual.includes(l.id) ? "✅" : "📄"}</span>
+      <span style="flex:1">${l.titulo}${l.autor ? ` <span style="color:#888;font-size:11px;">— ${l.autor}</span>` : ""}</span>
+    `
+    div.onclick = () => toggleLivroRel(l, listaId, selId, div)
+    lista.appendChild(div)
+  })
+}
+
+function toggleLivroRel(livro, listaId, selId, itemEl) {
+  const sel = listaId.startsWith("edit") ? livrosSelecionadosEdit : livrosSelecionados
+  const idx = sel.indexOf(livro.id)
+  if (idx === -1) {
+    sel.push(livro.id)
+    itemEl.classList.add("selecionado")
+    itemEl.querySelector("span").textContent = "✅"
+  } else {
+    sel.splice(idx, 1)
+    itemEl.classList.remove("selecionado")
+    itemEl.querySelector("span").textContent = "📄"
+  }
+  renderLivrosSelecionados(selId, sel)
+}
+
+function renderLivrosSelecionados(selId, sel) {
+  const wrap = document.getElementById(selId)
+  wrap.innerHTML = ""
+  sel.forEach(id => {
+    const livro = todosLivros.find(l => l.id === id)
+    if (!livro) return
+    const pill = document.createElement("span")
+    pill.className = "livro-rel-pill"
+    pill.innerHTML = `📄 ${livro.titulo} <button onclick="removerLivroSel(${id},'${selId}')">✕</button>`
+    wrap.appendChild(pill)
+  })
+}
+
+function removerLivroSel(id, selId) {
+  const sel = selId.startsWith("edit") ? livrosSelecionadosEdit : livrosSelecionados
+  const idx = sel.indexOf(id)
+  if (idx !== -1) sel.splice(idx, 1)
+  renderLivrosSelecionados(selId, sel)
+}
+
+// Inicializa seletor ao focar no campo de busca
+document.getElementById("v-livros-busca").addEventListener("focus", async () => {
+  await carregarLivrosParaSeletor()
+})
+document.getElementById("edit-v-livros-busca").addEventListener("focus", async () => {
+  await carregarLivrosParaSeletor()
+})
 
 document.getElementById("v-tags").addEventListener("input", function() {
   const m = this.value.match(/#[\wÀ-ú]+/g) || []
@@ -602,7 +721,6 @@ async function addVideo() {
   const arquivo      = document.getElementById("v-arquivo").files[0]
   const capa         = document.getElementById("v-capa").files[0]
   const link         = document.getElementById("v-link").value.trim()
-  const linksRel     = document.getElementById("v-links-rel").value.trim()
   const playlistLink = document.getElementById("v-playlist-link").value.trim()
 
   if (!titulo)           { mostrarVStatus("Digite o título do vídeo.", "erro"); return }
@@ -611,7 +729,8 @@ async function addVideo() {
   const formData = new FormData()
   formData.append("titulo", titulo); formData.append("autor", autor)
   formData.append("descricao", descricao); formData.append("tags", tags)
-  formData.append("link", link); formData.append("links_relacionados", linksRel)
+  formData.append("link", link)
+  formData.append("links_relacionados", livrosSelecionados.join(","))
   formData.append("playlist_link", playlistLink)
   if (arquivo) formData.append("arquivo", arquivo)
   if (capa)    formData.append("capa", capa)
@@ -644,12 +763,16 @@ async function addVideo() {
         progressFill.classList.add("concluido")
         progressTxt.textContent = "✅ Vídeo enviado com sucesso!"
         mostrarVStatus("✅ Vídeo enviado com sucesso!", "ok")
-        ;["v-titulo","v-autor","v-descricao","v-tags","v-arquivo","v-capa","v-link","v-links-rel","v-playlist-link"]
+        ;["v-titulo","v-autor","v-descricao","v-tags","v-arquivo","v-capa","v-link","v-playlist-link"]
           .forEach(id => document.getElementById(id).value = "")
         document.getElementById("v-tags-preview").innerHTML = ""
         document.getElementById("v-file-name").textContent = "Nenhum arquivo selecionado"
         document.getElementById("v-capa-name").textContent = "Nenhuma capa selecionada"
         document.getElementById("v-capa-preview").classList.remove("visivel")
+        document.getElementById("v-livros-busca").value = ""
+        document.getElementById("v-livros-lista").style.display = "none"
+        livrosSelecionados = []
+        document.getElementById("v-livros-sel").innerHTML = ""
         carregarVideosAdmin()
         setTimeout(() => progressWrap.classList.remove("visivel"), 3000)
       } else {
@@ -717,11 +840,20 @@ function abrirModalVideo(id, titulo, autor, desc, tags, capaUrl, link, linksRel,
   document.getElementById("edit-v-descricao").value     = desc
   document.getElementById("edit-v-tags").value          = tags
   document.getElementById("edit-v-link").value          = link
-  document.getElementById("edit-v-links-rel").value     = linksRel.replace(/\\n/g, "\n")
   document.getElementById("edit-v-playlist-link").value = plLink
   document.getElementById("edit-v-capa").value          = ""
   document.getElementById("edit-v-capa-name").textContent = "Nenhuma capa selecionada"
   document.getElementById("edit-v-capa-preview").classList.remove("visivel")
+  document.getElementById("edit-v-livros-busca").value  = ""
+  document.getElementById("edit-v-livros-lista").style.display = "none"
+
+  // Popular livros selecionados a partir dos IDs salvos
+  livrosSelecionadosEdit = linksRel
+    ? linksRel.split(",").map(Number).filter(n => !isNaN(n) && n > 0)
+    : []
+  carregarLivrosParaSeletor().then(() => {
+    renderLivrosSelecionados("edit-v-livros-sel", livrosSelecionadosEdit)
+  })
 
   const capaAtual = document.getElementById("edit-v-capa-atual")
   const capaImg   = document.getElementById("edit-v-capa-img")
@@ -747,9 +879,9 @@ async function salvarEdicaoVideo() {
   const descricao = document.getElementById("edit-v-descricao").value.trim()
   const tags      = document.getElementById("edit-v-tags").value.trim()
   const link      = document.getElementById("edit-v-link").value.trim()
-  const linksRel  = document.getElementById("edit-v-links-rel").value.trim()
   const plLink    = document.getElementById("edit-v-playlist-link").value.trim()
   const novaCapa  = document.getElementById("edit-v-capa").files[0]
+  const linksRel  = livrosSelecionadosEdit.join(",")
 
   if (!titulo) { mostrarVEditStatus("Título não pode ficar vazio.", "erro"); return }
 
