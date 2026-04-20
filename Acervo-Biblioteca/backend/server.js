@@ -61,7 +61,7 @@ async function exigirUsuario(req, res, next) {
   }
 }
 
-const upload = multer({ dest: "temp/", limits: { fileSize: 50 * 1024 * 1024 } })
+const upload = multer({ dest: "temp/", limits: { fileSize: 500 * 1024 * 1024 } })
 
 async function uploadStorage(filePath, fileName, mimetype) {
   const buf = fs.readFileSync(filePath)
@@ -307,6 +307,231 @@ app.get("/progresso", exigirUsuario, async (req, res) => {
     res.json({ pagina: data?.pagina || 1 })
   } catch {
     res.status(500).json({ status: "erro", message: "Erro ao buscar progresso." })
+  }
+})
+
+// ─── VÍDEOS ──────────────────────────────────────────────
+
+// Listar vídeos (público)
+app.get("/videos", async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("videos").select("*").order("id", { ascending: false })
+    if (error) throw error
+    res.json(data)
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao buscar vídeos." })
+  }
+})
+
+// Adicionar vídeo (admin) — aceita arquivo de vídeo + capa opcional
+app.post("/addVideo", exigirAdmin, upload.fields([
+  { name: "arquivo", maxCount: 1 },
+  { name: "capa",    maxCount: 1 }
+]), async (req, res) => {
+  const arquivoFile = req.files?.arquivo?.[0]
+  const capaFile    = req.files?.capa?.[0]
+  try {
+    const {
+      titulo, autor = "", descricao = "", tags: tagsRaw = "",
+      link = "", links_relacionados = "", playlist_link = ""
+    } = req.body
+    const tags = (tagsRaw.match(/#[\wÀ-ú]+/g) || []).map(t => t.slice(1).toLowerCase())
+
+    if (!titulo) return res.status(400).json({ status: "erro", message: "Título obrigatório." })
+    if (!arquivoFile && !link) return res.status(400).json({ status: "erro", message: "Envie um arquivo ou forneça um link." })
+
+    let videoUrl = link || null
+    let capaUrl  = null
+
+    // Upload de arquivo de vídeo (se enviado)
+    if (arquivoFile) {
+      const ext    = (arquivoFile.originalname.split(".").pop() || "").toLowerCase()
+      const extsOk = ["mp4","webm","mov","avi","mkv"]
+      if (!extsOk.includes(ext)) {
+        fs.unlinkSync(arquivoFile.path)
+        if (capaFile) fs.unlinkSync(capaFile.path)
+        return res.status(400).json({ status: "erro", message: "Tipo de vídeo não permitido." })
+      }
+      const nomeVideo = `video-${Date.now()}-${titulo.replace(/[^a-zA-Z0-9À-ú]/g,"_")}.${ext}`
+      videoUrl = await uploadStorage(arquivoFile.path, nomeVideo, arquivoFile.mimetype)
+      fs.unlinkSync(arquivoFile.path)
+    }
+
+    // Upload de capa (se enviada)
+    if (capaFile) {
+      const extCapa = (capaFile.originalname.split(".").pop() || "").toLowerCase()
+      if (["png","jpg","jpeg","webp"].includes(extCapa)) {
+        const nomeCapa = `capa-video-${Date.now()}.${extCapa}`
+        capaUrl = await uploadStorage(capaFile.path, nomeCapa, capaFile.mimetype)
+      }
+      fs.unlinkSync(capaFile.path)
+    }
+
+    const { error: dbError } = await supabase.from("videos").insert([{
+      titulo, autor, descricao, tags,
+      video_url: videoUrl,
+      capa_url: capaUrl,
+      link_externo: link || null,
+      links_relacionados: links_relacionados || null,
+      playlist_link: playlist_link || null
+    }])
+    if (dbError) throw dbError
+
+    res.json({ status: "ok", video_url: videoUrl, capa_url: capaUrl })
+  } catch (err) {
+    console.error("Erro addVideo:", err)
+    if (arquivoFile && fs.existsSync(arquivoFile.path)) fs.unlinkSync(arquivoFile.path)
+    if (capaFile    && fs.existsSync(capaFile.path))    fs.unlinkSync(capaFile.path)
+    res.status(500).json({ status: "erro", message: "Erro ao adicionar vídeo: " + err.message })
+  }
+})
+
+// Editar vídeo (admin)
+app.patch("/videos/:id", exigirAdmin, upload.fields([
+  { name: "capa", maxCount: 1 }
+]), async (req, res) => {
+  const capaFile = req.files?.capa?.[0]
+  try {
+    const { id } = req.params
+    if (!/^\d+$/.test(id)) return res.status(400).json({ status: "erro", message: "ID inválido." })
+
+    const { titulo, autor, descricao, tags: tagsRaw, link, links_relacionados, playlist_link } = req.body
+    const updates = {}
+    if (titulo             !== undefined) updates.titulo             = String(titulo).slice(0, 200)
+    if (autor              !== undefined) updates.autor              = String(autor).slice(0, 200)
+    if (descricao          !== undefined) updates.descricao          = String(descricao).slice(0, 1000)
+    if (link               !== undefined) updates.link_externo       = link
+    if (links_relacionados !== undefined) updates.links_relacionados = links_relacionados
+    if (playlist_link      !== undefined) updates.playlist_link      = playlist_link
+    if (tagsRaw            !== undefined)
+      updates.tags = (tagsRaw.match(/#[\wÀ-ú]+/g) || []).map(t => t.slice(1).toLowerCase())
+
+    if (capaFile) {
+      const extCapa = (capaFile.originalname.split(".").pop() || "").toLowerCase()
+      if (["png","jpg","jpeg","webp"].includes(extCapa)) {
+        const nomeCapa = `capa-video-${Date.now()}.${extCapa}`
+        updates.capa_url = await uploadStorage(capaFile.path, nomeCapa, capaFile.mimetype)
+      }
+      fs.unlinkSync(capaFile.path)
+    }
+
+    if (!Object.keys(updates).length)
+      return res.status(400).json({ status: "erro", message: "Nada para atualizar." })
+
+    const { error } = await supabase.from("videos").update(updates).eq("id", id)
+    if (error) throw error
+    res.json({ status: "ok" })
+  } catch {
+    if (capaFile && fs.existsSync(capaFile.path)) fs.unlinkSync(capaFile.path)
+    res.status(500).json({ status: "erro", message: "Erro ao editar vídeo." })
+  }
+})
+
+// Deletar vídeo (admin)
+app.delete("/videos/:id", exigirAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    if (!/^\d+$/.test(id)) return res.status(400).json({ status: "erro", message: "ID inválido." })
+
+    const { data: video, error: fetchError } = await supabase
+      .from("videos").select("video_url, capa_url, link_externo").eq("id", id).single()
+    if (fetchError) throw fetchError
+
+    // Remove arquivos do storage (só se for upload, não link externo)
+    const arquivos = []
+    if (video.video_url && !video.link_externo) arquivos.push(video.video_url.split("/").pop())
+    if (video.capa_url)  arquivos.push(video.capa_url.split("/").pop())
+    if (arquivos.length) await supabase.storage.from("livros").remove(arquivos)
+
+    const { error: deleteError } = await supabase.from("videos").delete().eq("id", id)
+    if (deleteError) throw deleteError
+
+    res.json({ status: "ok" })
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao deletar vídeo." })
+  }
+})
+
+// ─── PLAYLISTS (usuário) ──────────────────────────────────
+
+// Listar playlists do usuário
+app.get("/playlists", exigirUsuario, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("playlists")
+      .select("*").eq("user_id", req.userId).order("id", { ascending: false })
+    if (error) throw error
+    res.json(data)
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao buscar playlists." })
+  }
+})
+
+// Listar playlists públicas
+app.get("/playlists/publicas", async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("playlists")
+      .select("*").eq("publica", true).order("id", { ascending: false })
+    if (error) throw error
+    res.json(data)
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao buscar playlists públicas." })
+  }
+})
+
+// Criar playlist
+app.post("/playlists", exigirUsuario, async (req, res) => {
+  const { nome, descricao = "", publica = false, videos = [] } = req.body
+  if (!nome) return res.status(400).json({ status: "erro", message: "Nome obrigatório." })
+  try {
+    const { data, error } = await supabase.from("playlists")
+      .insert([{ user_id: req.userId, nome, descricao, publica, videos }])
+      .select().single()
+    if (error) throw error
+    res.json({ status: "ok", id: data.id })
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao criar playlist." })
+  }
+})
+
+// Editar playlist (só o dono)
+app.patch("/playlists/:id", exigirUsuario, async (req, res) => {
+  try {
+    const { id } = req.params
+    // Verificar dono
+    const { data: pl, error: fetchError } = await supabase.from("playlists")
+      .select("user_id").eq("id", id).single()
+    if (fetchError || pl.user_id !== req.userId)
+      return res.status(403).json({ status: "erro", message: "Sem permissão." })
+
+    const { nome, descricao, publica, videos } = req.body
+    const updates = {}
+    if (nome      !== undefined) updates.nome      = String(nome).slice(0, 200)
+    if (descricao !== undefined) updates.descricao = String(descricao).slice(0, 1000)
+    if (publica   !== undefined) updates.publica   = !!publica
+    if (videos    !== undefined) updates.videos    = videos
+
+    const { error } = await supabase.from("playlists").update(updates).eq("id", id)
+    if (error) throw error
+    res.json({ status: "ok" })
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao editar playlist." })
+  }
+})
+
+// Deletar playlist (só o dono)
+app.delete("/playlists/:id", exigirUsuario, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { data: pl, error: fetchError } = await supabase.from("playlists")
+      .select("user_id").eq("id", id).single()
+    if (fetchError || pl.user_id !== req.userId)
+      return res.status(403).json({ status: "erro", message: "Sem permissão." })
+
+    const { error } = await supabase.from("playlists").delete().eq("id", id)
+    if (error) throw error
+    res.json({ status: "ok" })
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao deletar playlist." })
   }
 })
 
