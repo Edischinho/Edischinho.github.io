@@ -337,6 +337,28 @@
     </div>
 
   </div>
+
+  <hr>
+  <h2>📋 Playlists do Site</h2>
+  <div id="playlists-admin-lista"></div>
+</div>
+
+<!-- ── Modal edição de playlist ── -->
+<div class="modal-overlay" id="modal-playlist-admin" onclick="fecharModalPlaylistAdmin(event)">
+  <div class="modal">
+    <h3>✏️ Editar Playlist</h3>
+    <input  id="edit-pl-nome"   placeholder="Nome da playlist">
+    <input  id="edit-pl-autor"  placeholder="Autor">
+    <textarea id="edit-pl-desc" placeholder="Descrição" rows="3"></textarea>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;cursor:pointer;">
+      <input type="checkbox" id="edit-pl-publica" style="width:auto;margin:0"> Playlist pública
+    </label>
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="fecharModalPlaylistAdmin()">Cancelar</button>
+      <button onclick="salvarPlaylistAdmin()">💾 Salvar</button>
+    </div>
+    <p id="edit-pl-status" style="display:none;margin-top:10px"></p>
+  </div>
 </div>
 
 <!-- ── Modal edição de vídeo ── -->
@@ -1104,7 +1126,8 @@ async function importarPlaylistLink() {
     if (data.status === "ok") {
       let msg = ""
       if (data.tipo === "youtube_playlist_completa") {
-        msg = `✅ ${data.importados} vídeo${data.importados !== 1 ? "s" : ""} importados da playlist! Uma playlist foi criada no site com todos eles.`
+        const pl = data.playlist
+        msg = `✅ ${data.importados} vídeo${data.importados !== 1 ? "s" : ""} importados!\n\nPlaylist criada: "${pl.nome}"${pl.autor ? ` — ${pl.autor}` : ""}\n\nVocê pode editar o nome, autor e descrição na seção "Playlists" abaixo.`
       } else if (data.tipo === "link_simples") {
         msg = `✅ Link importado como vídeo!`
       } else {
@@ -1114,6 +1137,7 @@ async function importarPlaylistLink() {
       document.getElementById("pl-import-url").value  = ""
       document.getElementById("pl-import-nome").value = ""
       carregarVideosAdmin()
+      carregarPlaylistsAdmin()
     } else {
       // Se o erro for sobre API key, mostrar instrução clara
       const msgErro = data.message.includes("YOUTUBE_API_KEY")
@@ -1238,6 +1262,101 @@ async function importarPlaylistPasta() {
 function mostrarResultado(el, msg, tipo) {
   el.textContent = msg; el.className = `resultado-import ${tipo}`; el.style.display = "block"
 }
+
+// ════════════════════════════════════════════════
+//  PLAYLISTS DO SITE (admin)
+// ════════════════════════════════════════════════
+let idPlEditandoAdmin = null
+
+async function carregarPlaylistsAdmin() {
+  const div = document.getElementById("playlists-admin-lista")
+  try {
+    const res  = await fetch(`${API}/playlists_admin`)
+    const pls  = await res.json()
+    if (!pls.length) { div.innerHTML = "<p>Nenhuma playlist cadastrada ainda.</p>"; return }
+    div.innerHTML = pls.map(pl => {
+      const count = (pl.videos || []).length
+      return `
+        <div class="livro-admin-card">
+          <div class="card-sem-capa" style="font-size:24px;">📋</div>
+          <div style="flex:1">
+            <strong>${pl.nome}</strong>
+            <span style="font-size:12px;color:#888;"> · ${count} vídeo${count !== 1 ? "s" : ""} · ${pl.publica ? "🌐 Pública" : "🔒 Privada"}</span>
+            ${pl.descricao ? `<div style="font-size:12px;color:#888;margin-top:3px;">${pl.descricao.slice(0,80)}${pl.descricao.length > 80 ? "…" : ""}</div>` : ""}
+          </div>
+          <button onclick="abrirModalPlaylistAdmin(${pl.id},'${(pl.nome||"").replace(/'/g,"\\'")}','${(pl.descricao||"").replace(/'/g,"\\'").replace(/\n/g,"\\n")}',${!!pl.publica})">✏️ Editar</button>
+          <button class="btn-del" onclick="deletarPlaylistAdmin(${pl.id})">🗑 Remover</button>
+        </div>
+      `
+    }).join("")
+  } catch {
+    div.innerHTML = "<p>Erro ao carregar playlists.</p>"
+  }
+}
+
+function abrirModalPlaylistAdmin(id, nome, desc, publica) {
+  idPlEditandoAdmin = id
+  document.getElementById("edit-pl-nome").value    = nome
+  document.getElementById("edit-pl-autor").value   = ""
+  document.getElementById("edit-pl-desc").value    = desc.replace(/\\n/g, "\n")
+  document.getElementById("edit-pl-publica").checked = publica
+  document.getElementById("edit-pl-status").style.display = "none"
+  document.getElementById("modal-playlist-admin").classList.add("aberto")
+}
+
+function fecharModalPlaylistAdmin(event) {
+  if (event && event.target !== document.getElementById("modal-playlist-admin")) return
+  document.getElementById("modal-playlist-admin").classList.remove("aberto")
+  idPlEditandoAdmin = null
+}
+
+async function salvarPlaylistAdmin() {
+  if (!idPlEditandoAdmin) return
+  const nome     = document.getElementById("edit-pl-nome").value.trim()
+  const descricao = document.getElementById("edit-pl-desc").value.trim()
+  const publica  = document.getElementById("edit-pl-publica").checked
+  const statusEl = document.getElementById("edit-pl-status")
+
+  if (!nome) { statusEl.textContent = "Nome não pode ficar vazio."; statusEl.className = "erro"; statusEl.style.display = "block"; return }
+
+  const btn = document.querySelector("#modal-playlist-admin .modal-btns button:last-child")
+  btn.disabled = true; btn.textContent = "Salvando..."
+
+  try {
+    const res  = await fetch(`${API}/playlists_admin/${idPlEditandoAdmin}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` },
+      body: JSON.stringify({ nome, descricao, publica })
+    })
+    const data = await res.json()
+    if (data.status === "ok") {
+      document.getElementById("modal-playlist-admin").classList.remove("aberto")
+      idPlEditandoAdmin = null
+      carregarPlaylistsAdmin()
+    } else {
+      statusEl.textContent = "Erro: " + data.message; statusEl.className = "erro"; statusEl.style.display = "block"
+    }
+  } catch {
+    statusEl.textContent = "Erro de conexão."; statusEl.className = "erro"; statusEl.style.display = "block"
+  } finally {
+    btn.disabled = false; btn.textContent = "💾 Salvar"
+  }
+}
+
+async function deletarPlaylistAdmin(id) {
+  if (!confirm("Remover esta playlist?")) return
+  try {
+    const res  = await fetch(`${API}/playlists_admin/${id}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` }
+    })
+    const data = await res.json()
+    if (data.status === "ok") carregarPlaylistsAdmin()
+    else alert("Erro: " + data.message)
+  } catch { alert("Erro de conexão.") }
+}
+
+carregarPlaylistsAdmin()
 </script>
 
 </body>
