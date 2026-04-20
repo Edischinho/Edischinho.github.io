@@ -265,7 +265,58 @@
     }
     .pl-video-item input[type=checkbox] { width: auto; margin: 0; }
 
-    /* ── Vazio ── */
+/* ── Modal playlist — grid de seleção ── */
+    .pl-grid-sel {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px; max-height: 320px; overflow-y: auto;
+      padding: 4px; user-select: none;
+      position: relative;
+    }
+    .pl-grid-item {
+      position: relative; border-radius: 8px; overflow: hidden;
+      cursor: pointer; border: 2px solid transparent;
+      transition: border-color 0.15s, transform 0.1s;
+      background: var(--surface2);
+    }
+    .pl-grid-item:hover { border-color: #555; }
+    .pl-grid-item.selecionado { border-color: var(--accent); }
+    .pl-grid-item.selecionado::after {
+      content: "✓"; position: absolute; top: 4px; right: 6px;
+      background: var(--accent); color: #111; font-size: 11px;
+      font-weight: bold; border-radius: 50%; width: 18px; height: 18px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pl-grid-thumb {
+      width: 100%; aspect-ratio: 16/9; object-fit: cover;
+      display: block; background: #222;
+    }
+    .pl-grid-thumb-placeholder {
+      width: 100%; aspect-ratio: 16/9;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; background: #222;
+    }
+    .pl-grid-titulo {
+      font-size: 11px; padding: 4px 6px;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+      color: var(--text);
+    }
+    .pl-sel-info {
+      font-size: 12px; color: var(--muted); margin-bottom: 8px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .pl-sel-todos {
+      font-size: 12px; color: var(--accent); cursor: pointer; background: none;
+      border: none; padding: 0;
+    }
+    .pl-sel-todos:hover { text-decoration: underline; }
+
+    /* Rubber-band selection overlay */
+    .sel-rubber {
+      position: fixed; border: 2px solid var(--accent);
+      background: rgba(255,215,0,0.08); pointer-events: none;
+      z-index: 9999; display: none;
+    }
     .vazio { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
     .vazio span { font-size: 48px; display: block; margin-bottom: 12px; }
 
@@ -346,17 +397,24 @@
   </div>
 </div>
 
+<!-- Rubber-band selection -->
+<div class="sel-rubber" id="sel-rubber"></div>
+
 <!-- Modal nova/editar playlist -->
 <div class="modal-overlay" id="modal-playlist" onclick="fecharModalPLOverlay(event)">
-  <div class="modal-pl">
+  <div class="modal-pl" style="max-width:560px;width:95%;">
     <h3 id="modal-pl-titulo">Nova playlist</h3>
     <input id="pl-nome" placeholder="Nome da playlist">
     <textarea id="pl-desc" placeholder="Descrição (opcional)" rows="2"></textarea>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;">
       <input type="checkbox" id="pl-publica" style="width:auto;margin:0"> Playlist pública
     </label>
-    <div id="pl-videos-lista" style="max-height:200px;overflow-y:auto;margin-bottom:10px;"></div>
-    <div class="modal-pl-btns">
+    <div class="pl-sel-info">
+      <span id="pl-sel-count">Nenhum vídeo selecionado</span>
+      <button class="pl-sel-todos" onclick="toggleTodosVideos()">Selecionar todos</button>
+    </div>
+    <div class="pl-grid-sel" id="pl-videos-lista"></div>
+    <div class="modal-pl-btns" style="margin-top:12px;">
       <button class="btn-sec" onclick="fecharModalPL()">Cancelar</button>
       <button class="btn-prim" onclick="salvarPlaylist()">💾 Salvar</button>
     </div>
@@ -794,31 +852,130 @@ function editarPlaylist(id) {
   document.getElementById("modal-playlist").classList.add("aberto")
 }
 
+let plVideosSelecionados = new Set()
+
 function renderCheckboxVideos(selecionados) {
+  plVideosSelecionados = new Set(selecionados || [])
   const wrap = document.getElementById("pl-videos-lista")
-  if (!videos.length) { wrap.innerHTML = '<div style="font-size:12px;color:#555;">Nenhum vídeo disponível.</div>'; return }
-  wrap.innerHTML = `<div style="font-size:12px;color:#aaa;margin-bottom:8px;">Selecionar vídeos:</div>`
+  if (!videos.length) {
+    wrap.innerHTML = '<div style="font-size:12px;color:#555;padding:8px;">Nenhum vídeo disponível.</div>'
+    return
+  }
+  wrap.innerHTML = ""
   videos.forEach(v => {
-    const checked = selecionados && selecionados.includes(v.id) ? "checked" : ""
-    const div = document.createElement("div")
-    div.className = "pl-video-item"
-    div.innerHTML = `
-      <input type="checkbox" id="plv-${v.id}" value="${v.id}" ${checked}>
-      <label for="plv-${v.id}" style="cursor:pointer;font-size:13px;">${v.titulo}</label>
-    `
-    wrap.appendChild(div)
+    const item = document.createElement("div")
+    item.className = "pl-grid-item" + (plVideosSelecionados.has(v.id) ? " selecionado" : "")
+    item.dataset.id = v.id
+
+    const thumb = getThumbnail(v)
+    const thumbHtml = thumb.type === "img"
+      ? `<img class="pl-grid-thumb" src="${thumb.src}" loading="lazy" onerror="this.style.display='none'">`
+      : `<div class="pl-grid-thumb-placeholder">🎬</div>`
+
+    item.innerHTML = `${thumbHtml}<div class="pl-grid-titulo">${v.titulo}</div>`
+    item.addEventListener("click", (e) => {
+      if (e.shiftKey && lastClickedPlItem !== null) {
+        // Seleção por shift+click: seleciona range
+        const ids = videos.map(vv => vv.id)
+        const a = ids.indexOf(lastClickedPlItem)
+        const b = ids.indexOf(v.id)
+        const [from, to] = a < b ? [a, b] : [b, a]
+        for (let i = from; i <= to; i++) plVideosSelecionados.add(ids[i])
+      } else {
+        if (plVideosSelecionados.has(v.id)) plVideosSelecionados.delete(v.id)
+        else plVideosSelecionados.add(v.id)
+      }
+      lastClickedPlItem = v.id
+      atualizarGridPl()
+    })
+    wrap.appendChild(item)
+  })
+  atualizarGridPl()
+  iniciarRubberBand(wrap)
+}
+
+let lastClickedPlItem = null
+
+function atualizarGridPl() {
+  const items = document.querySelectorAll("#pl-videos-lista .pl-grid-item")
+  items.forEach(item => {
+    const id = parseInt(item.dataset.id)
+    item.classList.toggle("selecionado", plVideosSelecionados.has(id))
+  })
+  const n = plVideosSelecionados.size
+  document.getElementById("pl-sel-count").textContent =
+    n === 0 ? "Nenhum vídeo selecionado" : `${n} vídeo${n !== 1 ? "s" : ""} selecionado${n !== 1 ? "s" : ""}`
+}
+
+function toggleTodosVideos() {
+  if (plVideosSelecionados.size === videos.length) {
+    plVideosSelecionados.clear()
+  } else {
+    videos.forEach(v => plVideosSelecionados.add(v.id))
+  }
+  atualizarGridPl()
+}
+
+// ── Rubber-band (seleção em área) ──
+function iniciarRubberBand(container) {
+  const rubber = document.getElementById("sel-rubber")
+  let dragging = false, startX, startY
+
+  container.addEventListener("mousedown", e => {
+    if (e.button !== 0) return
+    if (e.target.closest(".pl-grid-item")) return // clique direto no item, não arrastar
+    dragging = true
+    startX = e.clientX; startY = e.clientY
+    rubber.style.cssText = `display:block;left:${startX}px;top:${startY}px;width:0;height:0;`
+    e.preventDefault()
+  })
+
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return
+    const x = Math.min(e.clientX, startX)
+    const y = Math.min(e.clientY, startY)
+    const w = Math.abs(e.clientX - startX)
+    const h = Math.abs(e.clientY - startY)
+    rubber.style.cssText = `display:block;left:${x}px;top:${y}px;width:${w}px;height:${h}px;`
+
+    // Destacar itens que intersectam
+    const rect = { left: x, right: x + w, top: y, bottom: y + h }
+    document.querySelectorAll("#pl-videos-lista .pl-grid-item").forEach(item => {
+      const r = item.getBoundingClientRect()
+      const intersecta = r.left < rect.right && r.right > rect.left && r.top < rect.bottom && r.bottom > rect.top
+      if (intersecta) item.style.outline = "2px solid var(--accent)"
+      else item.style.outline = ""
+    })
+  })
+
+  document.addEventListener("mouseup", e => {
+    if (!dragging) return
+    dragging = false
+    rubber.style.display = "none"
+    const x = Math.min(e.clientX, startX)
+    const y = Math.min(e.clientY, startY)
+    const w = Math.abs(e.clientX - startX)
+    const h = Math.abs(e.clientY - startY)
+    if (w < 5 && h < 5) return // clique simples, não arrastar
+    const rect = { left: x, right: x + w, top: y, bottom: y + h }
+    document.querySelectorAll("#pl-videos-lista .pl-grid-item").forEach(item => {
+      item.style.outline = ""
+      const r = item.getBoundingClientRect()
+      if (r.left < rect.right && r.right > rect.left && r.top < rect.bottom && r.bottom > rect.top) {
+        plVideosSelecionados.add(parseInt(item.dataset.id))
+      }
+    })
+    atualizarGridPl()
   })
 }
 
 async function salvarPlaylist() {
-  const nome    = document.getElementById("pl-nome").value.trim()
+  const nome      = document.getElementById("pl-nome").value.trim()
   const descricao = document.getElementById("pl-desc").value.trim()
-  const publica = document.getElementById("pl-publica").checked
+  const publica   = document.getElementById("pl-publica").checked
   if (!nome) { alert("Digite um nome."); return }
 
-  const videosSel = [...document.querySelectorAll("#pl-videos-lista input[type=checkbox]:checked")]
-    .map(el => parseInt(el.value))
-
+  const videosSel = [...plVideosSelecionados]
   const body = { nome, descricao, publica, videos: videosSel }
 
   try {
