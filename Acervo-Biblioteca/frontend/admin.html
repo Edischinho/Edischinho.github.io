@@ -84,7 +84,58 @@
     }
     .capa-atual span { font-size: 13px; color: #888; }
 
-    /* ── Seletor de livros relacionados ── */
+    /* ── Importar Playlist ── */
+    .import-abas {
+      display: flex; gap: 0; margin-bottom: 16px;
+      border: 1px solid #ccc; border-radius: 8px; overflow: hidden;
+    }
+    .import-aba {
+      flex: 1; padding: 9px; text-align: center; font-size: 13px;
+      cursor: pointer; background: #f0f0f0; color: #555; border: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .import-aba.ativa { background: #222; color: #fff; font-weight: bold; }
+    .import-painel { display: none; }
+    .import-painel.ativo { display: block; }
+
+    .batch-drop-zone {
+      border: 2px dashed #aaa; border-radius: 8px; padding: 24px;
+      text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 10px;
+    }
+    .batch-drop-zone:hover,
+    .batch-drop-zone.drag-over { border-color: #222; background: #f0f0f0; }
+    .batch-drop-zone span { font-size: 13px; color: #666; display: block; margin-top: 6px; }
+
+    .batch-lista { margin-bottom: 10px; max-height: 200px; overflow-y: auto; }
+    .batch-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 8px; border-radius: 5px; font-size: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    .batch-item .bi-nome { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .batch-item .bi-status { font-size: 11px; padding: 2px 7px; border-radius: 10px; }
+    .bi-status.ok      { background: #d4edda; color: #155724; }
+    .bi-status.erro    { background: #f8d7da; color: #721c24; }
+    .bi-status.aguardo { background: #fff3cd; color: #856404; }
+
+    .resultado-import {
+      padding: 12px; border-radius: 8px; font-size: 13px;
+      margin-top: 10px; display: none;
+    }
+    .resultado-import.ok   { background: #d4edda; color: #155724; }
+    .resultado-import.erro { background: #f8d7da; color: #721c24; }
+
+    @media (prefers-color-scheme: dark) {
+      .import-aba       { background: #2a2a2a; color: #aaa; border-color: #444; }
+      .import-aba.ativa { background: #eee; color: #111; }
+      .import-abas      { border-color: #444; }
+      .batch-drop-zone  { border-color: #555; }
+      .batch-drop-zone:hover,
+      .batch-drop-zone.drag-over { border-color: #aaa; background: #1a1a1a; }
+      .batch-drop-zone span { color: #aaa; }
+      .batch-item       { border-color: #333; }
+    }
     .livro-rel-item {
       display: flex; align-items: center; gap: 8px;
       padding: 6px 8px; border-radius: 5px; cursor: pointer;
@@ -218,6 +269,70 @@
   <hr>
   <h2>Vídeos Cadastrados</h2>
   <div id="videos-admin"></div>
+
+  <hr>
+
+  <!-- ── IMPORTAR PLAYLIST ── -->
+  <h2>📋 Importar Playlist</h2>
+  <div class="form-wrap">
+
+    <!-- Abas -->
+    <div class="import-abas">
+      <button class="import-aba ativa" onclick="setImportAba('link', this)">🔗 Por link</button>
+      <button class="import-aba"       onclick="setImportAba('pasta', this)">📁 Por pasta de arquivos</button>
+    </div>
+
+    <!-- Painel: Link de playlist -->
+    <div id="import-painel-link" class="import-painel ativo">
+      <input id="pl-import-url"  placeholder="URL da playlist (YouTube, etc.)">
+      <input id="pl-import-nome" placeholder="Nome da playlist">
+      <input id="pl-import-autor" placeholder="Autor (opcional)">
+      <input id="pl-import-tags" placeholder="Tags: #tag1 #tag2 (opcional)">
+      <div class="tags-preview" id="pl-import-tags-preview" style="margin-bottom:10px;"></div>
+      <button onclick="importarPlaylistLink()" id="btn-import-link">🔗 Importar playlist</button>
+      <div class="resultado-import" id="res-import-link"></div>
+    </div>
+
+    <!-- Painel: Pasta de arquivos -->
+    <div id="import-painel-pasta" class="import-painel">
+      <input id="pl-pasta-nome"  placeholder="Nome da playlist">
+      <input id="pl-pasta-autor" placeholder="Autor (opcional)">
+      <input id="pl-pasta-tags"  placeholder="Tags: #tag1 #tag2 (opcional)">
+      <div class="tags-preview" id="pl-pasta-tags-preview" style="margin-bottom:10px;"></div>
+      <label style="font-size:13px;color:#666;display:block;margin-bottom:6px;">
+        <input type="checkbox" id="pl-pasta-publica" style="width:auto;margin:0 4px 0 0;"> Playlist pública
+      </label>
+
+      <!-- Drop zone de vídeos -->
+      <div class="batch-drop-zone" id="batch-drop-zone" onclick="document.getElementById('batch-arquivos').click()">
+        <div style="font-size:36px;">🎬</div>
+        <span>Clique ou arraste os arquivos de vídeo aqui</span>
+        <span style="font-size:11px;color:#999;">(mp4, webm, mov, avi, mkv — múltiplos arquivos)</span>
+        <input type="file" id="batch-arquivos" accept="video/*" multiple style="display:none"
+          onchange="onBatchArquivosChange(this)">
+      </div>
+
+      <!-- Lista de arquivos selecionados -->
+      <div class="batch-lista" id="batch-lista"></div>
+
+      <!-- Barra de progresso da importação em lote -->
+      <div class="progress-wrap" id="batch-progress-wrap">
+        <div class="progress-label">
+          <span id="batch-progress-texto">Enviando...</span>
+          <span id="batch-progress-pct">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="batch-progress-fill"></div>
+        </div>
+      </div>
+
+      <button onclick="importarPlaylistPasta()" id="btn-import-pasta" style="margin-top:10px;">
+        📁 Importar playlist
+      </button>
+      <div class="resultado-import" id="res-import-pasta"></div>
+    </div>
+
+  </div>
 </div>
 
 <!-- ── Modal edição de vídeo ── -->
@@ -940,6 +1055,176 @@ function mostrarVEditStatus(msg, tipo) {
 }
 
 carregarVideosAdmin()
+
+// ════════════════════════════════════════════════
+//  IMPORTAR PLAYLIST
+// ════════════════════════════════════════════════
+let batchArquivos = []
+
+function setImportAba(aba, btn) {
+  document.querySelectorAll(".import-aba").forEach(b => b.classList.remove("ativa"))
+  btn.classList.add("ativa")
+  document.getElementById("import-painel-link").classList.toggle("ativo",  aba === "link")
+  document.getElementById("import-painel-pasta").classList.toggle("ativo", aba === "pasta")
+}
+
+document.getElementById("pl-import-tags").addEventListener("input", function() {
+  const m = this.value.match(/#[\wÀ-ú]+/g) || []
+  document.getElementById("pl-import-tags-preview").innerHTML = m.map(t => `<span class="tag-pill">${t}</span>`).join("")
+})
+document.getElementById("pl-pasta-tags").addEventListener("input", function() {
+  const m = this.value.match(/#[\wÀ-ú]+/g) || []
+  document.getElementById("pl-pasta-tags-preview").innerHTML = m.map(t => `<span class="tag-pill">${t}</span>`).join("")
+})
+
+async function importarPlaylistLink() {
+  const url    = document.getElementById("pl-import-url").value.trim()
+  const nome   = document.getElementById("pl-import-nome").value.trim()
+  const autor  = document.getElementById("pl-import-autor").value.trim()
+  const tags   = document.getElementById("pl-import-tags").value.trim()
+  const resEl  = document.getElementById("res-import-link")
+  const btn    = document.getElementById("btn-import-link")
+
+  if (!url) { mostrarResultado(resEl, "Cole uma URL de playlist.", "erro"); return }
+
+  btn.disabled = true; btn.textContent = "Importando..."
+  resEl.style.display = "none"
+
+  try {
+    const res  = await fetch(`${API}/importPlaylistLink`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` },
+      body: JSON.stringify({ playlist_url: url, playlist_nome: nome, autor, tags })
+    })
+    const data = await res.json()
+    if (data.status === "ok") {
+      const msg = data.tipo === "youtube_playlist"
+        ? `✅ Playlist do YouTube importada como vídeo embedado!`
+        : `✅ Link importado com sucesso!`
+      mostrarResultado(resEl, msg, "ok")
+      document.getElementById("pl-import-url").value  = ""
+      document.getElementById("pl-import-nome").value = ""
+      carregarVideosAdmin()
+    } else {
+      mostrarResultado(resEl, "Erro: " + data.message, "erro")
+    }
+  } catch {
+    mostrarResultado(resEl, "Erro de conexão.", "erro")
+  } finally {
+    btn.disabled = false; btn.textContent = "🔗 Importar playlist"
+  }
+}
+
+function onBatchArquivosChange(input) {
+  batchArquivos = Array.from(input.files)
+  renderBatchLista()
+}
+
+function renderBatchLista() {
+  const lista = document.getElementById("batch-lista")
+  if (!batchArquivos.length) { lista.innerHTML = ""; return }
+  lista.innerHTML = batchArquivos.map((f, i) => `
+    <div class="batch-item">
+      <span>🎬</span>
+      <span class="bi-nome">${f.name}</span>
+      <span style="font-size:11px;color:#888;">${(f.size/1024/1024).toFixed(1)} MB</span>
+      <span class="bi-status aguardo" id="bi-status-${i}">Aguardando</span>
+    </div>
+  `).join("")
+}
+
+const dropZone = document.getElementById("batch-drop-zone")
+dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drag-over") })
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"))
+dropZone.addEventListener("drop", e => {
+  e.preventDefault()
+  dropZone.classList.remove("drag-over")
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("video/"))
+  if (!files.length) return
+  batchArquivos = files
+  renderBatchLista()
+})
+
+async function importarPlaylistPasta() {
+  const nome   = document.getElementById("pl-pasta-nome").value.trim()  || "Playlist importada"
+  const autor  = document.getElementById("pl-pasta-autor").value.trim()
+  const tags   = document.getElementById("pl-pasta-tags").value.trim()
+  const publica = document.getElementById("pl-pasta-publica").checked
+  const resEl  = document.getElementById("res-import-pasta")
+  const btn    = document.getElementById("btn-import-pasta")
+
+  if (!batchArquivos.length) { mostrarResultado(resEl, "Selecione os arquivos de vídeo.", "erro"); return }
+
+  btn.disabled = true; btn.textContent = "Enviando..."
+  resEl.style.display = "none"
+
+  const progressWrap = document.getElementById("batch-progress-wrap")
+  const progressFill = document.getElementById("batch-progress-fill")
+  const progressPct  = document.getElementById("batch-progress-pct")
+  const progressTxt  = document.getElementById("batch-progress-texto")
+  progressWrap.classList.add("visivel")
+  progressFill.style.width = "0%"
+  progressFill.className   = "progress-bar-fill"
+  progressTxt.textContent  = "Preparando envio..."
+  progressPct.textContent  = "0%"
+
+  const formData = new FormData()
+  formData.append("playlist_nome", nome)
+  formData.append("autor", autor)
+  formData.append("tags",  tags)
+  formData.append("publica", String(publica))
+  batchArquivos.forEach(f => formData.append("videos", f))
+
+  const xhr = new XMLHttpRequest()
+  xhr.upload.addEventListener("progress", e => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 85)
+      progressFill.style.width = pct + "%"; progressPct.textContent = pct + "%"
+      progressTxt.textContent = pct < 40 ? "Enviando arquivos..." : pct < 75 ? "Processando vídeos..." : "Quase lá..."
+    }
+  })
+  xhr.addEventListener("load", () => {
+    progressFill.style.width = "100%"; progressPct.textContent = "100%"
+    try {
+      const data = JSON.parse(xhr.responseText)
+      if (data.status === "ok") {
+        progressFill.classList.add("concluido")
+        progressTxt.textContent = `✅ ${data.importados}/${data.total} vídeos importados!`
+        if (data.resultados) {
+          data.resultados.forEach((r, i) => {
+            const el = document.getElementById(`bi-status-${i}`)
+            if (el) {
+              el.textContent = r.status === "ok" ? "✅ Enviado" : r.status === "ignorado" ? "⏭ Ignorado" : "❌ Erro"
+              el.className   = `bi-status ${r.status === "ok" ? "ok" : "erro"}`
+            }
+          })
+        }
+        mostrarResultado(resEl, `✅ Playlist "${nome}" criada com ${data.importados} vídeo${data.importados !== 1 ? "s" : ""}!`, "ok")
+        batchArquivos = []
+        document.getElementById("batch-arquivos").value = ""
+        carregarVideosAdmin()
+        setTimeout(() => progressWrap.classList.remove("visivel"), 4000)
+      } else {
+        progressFill.classList.add("erro")
+        progressTxt.textContent = "Erro: " + data.message
+        mostrarResultado(resEl, "Erro: " + data.message, "erro")
+      }
+    } catch { progressFill.classList.add("erro"); progressTxt.textContent = "Erro ao processar." }
+    btn.disabled = false; btn.textContent = "📁 Importar playlist"
+  })
+  xhr.addEventListener("error", () => {
+    progressFill.classList.add("erro"); progressTxt.textContent = "Erro de conexão."
+    mostrarResultado(resEl, "Erro de conexão.", "erro")
+    btn.disabled = false; btn.textContent = "📁 Importar playlist"
+  })
+  xhr.open("POST", `${API}/addPlaylistBatch`)
+  xhr.setRequestHeader("Authorization", `Bearer ${localStorage.getItem("sl_admin_token") || ""}`)
+  xhr.send(formData)
+}
+
+function mostrarResultado(el, msg, tipo) {
+  el.textContent = msg; el.className = `resultado-import ${tipo}`; el.style.display = "block"
+}
 </script>
 
 </body>
