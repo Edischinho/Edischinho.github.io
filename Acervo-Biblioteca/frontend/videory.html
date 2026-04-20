@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="IconeSH.ico">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Videory — Omnisentis</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2:#222;
+      --border:  #2a2a2a;
+      --text:    #eee;
+      --muted:   #aaa;
+      --accent:  #ffd700;
+      --radius:  10px;
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: Arial, sans-serif; min-height: 100vh; }
+
+    /* ── Header ── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; gap: 16px;
+      padding: 10px 24px;
+      background: rgba(15,15,15,0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-logo { font-size: 16px; font-weight: bold; color: var(--accent); white-space: nowrap; text-decoration: none; }
+    .header-logo span { color: #eee; }
+    .header-busca {
+      flex: 1; max-width: 600px; display: flex; gap: 0;
+    }
+    .header-busca input {
+      flex: 1; padding: 8px 16px; border-radius: 20px 0 0 20px;
+      border: 1px solid var(--border); border-right: none;
+      background: var(--surface2); color: var(--text); font-size: 14px;
+    }
+    .header-busca input:focus { outline: none; border-color: #555; }
+    .header-busca button {
+      padding: 8px 16px; border-radius: 0 20px 20px 0;
+      border: 1px solid var(--border); border-left: none;
+      background: var(--surface); color: var(--text); cursor: pointer; font-size: 14px;
+    }
+    .header-busca button:hover { background: #333; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+    /* ── Abas ── */
+    .abas {
+      display: flex; gap: 4px; padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto; background: var(--bg);
+    }
+    .aba-btn {
+      padding: 7px 16px; border-radius: 20px; border: none;
+      background: var(--surface2); color: var(--muted);
+      font-size: 13px; cursor: pointer; white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .aba-btn:hover { background: #333; color: var(--text); }
+    .aba-btn.ativo { background: var(--text); color: #111; font-weight: bold; }
+
+    /* ── Layout principal ── */
+    .layout { display: flex; gap: 0; }
+
+    /* ── Sidebar playlists ── */
+    .sidebar {
+      width: 260px; flex-shrink: 0;
+      padding: 16px 12px;
+      border-right: 1px solid var(--border);
+      min-height: calc(100vh - 120px);
+    }
+    .sidebar-titulo {
+      font-size: 13px; font-weight: bold; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 12px; padding: 0 4px;
+    }
+    .btn-nova-playlist {
+      width: 100%; padding: 9px; border-radius: var(--radius);
+      border: 1px dashed var(--border); background: transparent;
+      color: var(--accent); font-size: 13px; cursor: pointer;
+      margin-bottom: 12px; transition: background 0.15s;
+    }
+    .btn-nova-playlist:hover { background: rgba(255,215,0,0.05); }
+    .playlist-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; border-radius: var(--radius);
+      cursor: pointer; transition: background 0.1s;
+      position: relative;
+    }
+    .playlist-item:hover { background: var(--surface); }
+    .playlist-item.ativa { background: var(--surface2); }
+    .playlist-icon { font-size: 18px; flex-shrink: 0; }
+    .playlist-nome { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .playlist-count { font-size: 11px; color: var(--muted); }
+    .playlist-acoes {
+      display: none; gap: 4px; position: absolute; right: 8px;
+    }
+    .playlist-item:hover .playlist-acoes { display: flex; }
+    .pl-btn {
+      background: none; border: none; color: var(--muted);
+      font-size: 12px; cursor: pointer; padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .pl-btn:hover { color: var(--text); background: var(--border); }
+
+    /* ── Grid de vídeos ── */
+    .conteudo { flex: 1; padding: 20px 24px; }
+    .secao-titulo {
+      font-size: 16px; font-weight: bold; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .videos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px; margin-bottom: 32px;
+    }
+    .video-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .video-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .video-thumb-wrap {
+      position: relative; aspect-ratio: 16/9;
+      background: #111; overflow: hidden;
+    }
+    .video-thumb {
+      width: 100%; height: 100%; object-fit: cover;
+      transition: opacity 0.2s;
+    }
+    .video-thumb-placeholder {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 48px; background: linear-gradient(135deg, #1a1a1a, #333);
+    }
+    .video-play-icon {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.2s;
+      background: rgba(0,0,0,0.3);
+    }
+    .video-play-icon span { font-size: 48px; }
+    .video-card:hover .video-play-icon { opacity: 1; }
+    .video-tag-link {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(255,215,0,0.85); color: #111;
+      font-size: 10px; font-weight: bold; border-radius: 4px;
+      padding: 2px 6px;
+    }
+    .video-info { padding: 12px; }
+    .video-titulo { font-size: 14px; font-weight: bold; margin-bottom: 4px; line-height: 1.3; }
+    .video-autor  { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .video-desc   { font-size: 12px; color: #888; margin-bottom: 8px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .video-tags   { display: flex; flex-wrap: wrap; gap: 4px; }
+    .video-tag {
+      font-size: 11px; background: var(--surface2);
+      color: var(--muted); border-radius: 12px;
+      padding: 2px 8px; cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+    .video-tag:hover { background: #333; color: var(--text); }
+
+    /* ── Modal player ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85); z-index: 200;
+      align-items: flex-start; justify-content: center;
+      overflow-y: auto; padding: 20px;
+    }
+    .modal-overlay.aberto { display: flex; }
+    .modal-player {
+      background: var(--surface); border-radius: 14px;
+      width: 100%; max-width: 900px;
+      box-shadow: 0 16px 64px rgba(0,0,0,0.8);
+      overflow: hidden; margin: auto;
+    }
+    .modal-video-wrap {
+      position: relative; aspect-ratio: 16/9;
+      background: #000;
+    }
+    .modal-video-wrap video,
+    .modal-video-wrap iframe {
+      width: 100%; height: 100%; border: none;
+    }
+    .modal-fechar {
+      position: absolute; top: 12px; right: 12px; z-index: 10;
+      background: rgba(0,0,0,0.6); border: none; color: white;
+      font-size: 20px; cursor: pointer; border-radius: 50%;
+      width: 36px; height: 36px; display: flex;
+      align-items: center; justify-content: center;
+    }
+    .modal-fechar:hover { background: rgba(255,255,255,0.2); }
+    .modal-info { padding: 20px 24px; }
+    .modal-titulo { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+    .modal-autor  { font-size: 14px; color: var(--muted); margin-bottom: 12px; }
+    .modal-desc   { font-size: 14px; color: #bbb; line-height: 1.6; margin-bottom: 16px; white-space: pre-wrap; }
+    .modal-tags   { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .modal-tag {
+      font-size: 12px; background: var(--surface2);
+      color: var(--muted); border-radius: 12px;
+      padding: 3px 10px; cursor: pointer;
+    }
+    .modal-tag:hover { color: var(--text); }
+    .modal-relacionados { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
+    .modal-rel-titulo { font-size: 13px; font-weight: bold; color: var(--muted); margin-bottom: 10px; }
+    .modal-rel-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface2); border-radius: 8px;
+      padding: 6px 12px; color: var(--accent); text-decoration: none;
+      font-size: 13px; margin: 0 6px 6px 0; transition: background 0.1s;
+    }
+    .modal-rel-link:hover { background: #333; }
+
+    /* Botão adicionar à playlist */
+    .btn-add-playlist {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px; padding: 7px 14px;
+      font-size: 13px; cursor: pointer; display: inline-flex;
+      align-items: center; gap: 6px; transition: background 0.1s;
+    }
+    .btn-add-playlist:hover { background: #333; }
+
+    /* ── Modal playlists ── */
+    .modal-pl {
+      background: var(--surface); border-radius: 14px;
+      padding: 24px; width: 90%; max-width: 420px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+    }
+    .modal-pl h3 { margin: 0 0 16px; font-size: 16px; }
+    .modal-pl input, .modal-pl textarea, .modal-pl select {
+      width: 100%; padding: 9px 12px; margin-bottom: 10px;
+      background: var(--surface2); color: var(--text);
+      border: 1px solid #444; border-radius: 8px; font-size: 14px;
+    }
+    .modal-pl input:focus, .modal-pl textarea:focus { outline: none; border-color: var(--accent); }
+    .modal-pl-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+    .btn-prim { background: var(--accent); color: #111; border: none; border-radius: 8px; padding: 8px 18px; font-size: 14px; font-weight: bold; cursor: pointer; }
+    .btn-prim:hover { background: #ffe44d; }
+    .btn-sec  { background: var(--surface2); color: var(--muted); border: none; border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+    .btn-sec:hover { background: #333; }
+    .pl-video-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 0; border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .pl-video-item input[type=checkbox] { width: auto; margin: 0; }
+
+    /* ── Vazio ── */
+    .vazio { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
+    .vazio span { font-size: 48px; display: block; margin-bottom: 12px; }
+
+    /* ── Responsivo ── */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .videos-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+      .header { padding: 10px 12px; }
+      .conteudo { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <a class="header-logo" href="index.html">⚔ Omni<span>sentis</span></a>
+  <div class="header-busca">
+    <input id="busca-input" placeholder="Pesquisar vídeos..." oninput="filtrar()">
+    <button onclick="filtrar()">🔍</button>
+  </div>
+  <div class="header-right" id="btn-conta-wrap"></div>
+</div>
+
+<!-- Abas -->
+<div class="abas">
+  <button class="aba-btn ativo" onclick="setAba('todos', this)">🎬 Todos</button>
+  <button class="aba-btn" onclick="setAba('minhas-playlists', this)">📋 Minhas playlists</button>
+  <button class="aba-btn" onclick="setAba('playlists-publicas', this)">🌐 Playlists públicas</button>
+</div>
+
+<!-- Layout -->
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-titulo">📋 Minhas playlists</div>
+    <button class="btn-nova-playlist" onclick="abrirModalNovaPlaylist()">+ Nova playlist</button>
+    <div id="lista-playlists-sidebar"></div>
+  </div>
+
+  <!-- Conteúdo -->
+  <div class="conteudo" id="conteudo">
+    <div id="secao-todos">
+      <div class="secao-titulo">🎬 Todos os vídeos</div>
+      <div class="videos-grid" id="grid-videos"></div>
+    </div>
+    <div id="secao-minhas-playlists" style="display:none">
+      <div class="secao-titulo">📋 Minhas playlists</div>
+      <div id="grid-minhas-playlists"></div>
+    </div>
+    <div id="secao-playlists-publicas" style="display:none">
+      <div class="secao-titulo">🌐 Playlists públicas</div>
+      <div class="videos-grid" id="grid-playlists-publicas"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal player -->
+<div class="modal-overlay" id="modal-player" onclick="fecharPlayerOverlay(event)">
+  <div class="modal-player" id="modal-player-inner">
+    <div class="modal-video-wrap" id="modal-video-wrap">
+      <button class="modal-fechar" onclick="fecharPlayer()">✕</button>
+    </div>
+    <div class="modal-info">
+      <div class="modal-titulo" id="modal-titulo"></div>
+      <div class="modal-autor"  id="modal-autor"></div>
+      <button class="btn-add-playlist" onclick="abrirModalAddPlaylist()" id="btn-add-pl" style="display:none">
+        ➕ Adicionar à playlist
+      </button>
+      <div class="modal-desc"   id="modal-desc"></div>
+      <div class="modal-tags"   id="modal-tags"></div>
+      <div class="modal-relacionados" id="modal-relacionados" style="display:none">
+        <div class="modal-rel-titulo">🔗 Links relacionados</div>
+        <div id="modal-rel-links"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal nova/editar playlist -->
+<div class="modal-overlay" id="modal-playlist" onclick="fecharModalPLOverlay(event)">
+  <div class="modal-pl">
+    <h3 id="modal-pl-titulo">Nova playlist</h3>
+    <input id="pl-nome" placeholder="Nome da playlist">
+    <textarea id="pl-desc" placeholder="Descrição (opcional)" rows="2"></textarea>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;">
+      <input type="checkbox" id="pl-publica" style="width:auto;margin:0"> Playlist pública
+    </label>
+    <div id="pl-videos-lista" style="max-height:200px;overflow-y:auto;margin-bottom:10px;"></div>
+    <div class="modal-pl-btns">
+      <button class="btn-sec" onclick="fecharModalPL()">Cancelar</button>
+      <button class="btn-prim" onclick="salvarPlaylist()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal adicionar à playlist -->
+<div class="modal-overlay" id="modal-add-pl" onclick="fecharModalAddPLOverlay(event)">
+  <div class="modal-pl">
+    <h3>Adicionar à playlist</h3>
+    <div id="add-pl-lista" style="max-height:300px;overflow-y:auto;margin-bottom:12px;"></div>
+    <div class="modal-pl-btns">
+      <button class="btn-sec" onclick="fecharModalAddPL()">Fechar</button>
+      <button class="btn-prim" onclick="abrirModalNovaPlaylist()">+ Nova playlist</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API  = "https://edischinho-github-io.onrender.com"
+const SUPA_URL = "https://iwggwgepwbrvmmrgsrvr.supabase.co"
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3Z2d3Z2Vwd2Jydm1tcmdzcnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mzc4ODcsImV4cCI6MjA4OTExMzg4N30.BFaHUNavW7VOApg35r01SHsfjgYKUnhlT7YSADF9H6U"
+const _supa = supabase.createClient(SUPA_URL, SUPA_KEY)
+
+let videos    = []
+let playlists = []
+let videoAtual = null
+let plEditandoId = null
+let logado   = false
+let userId   = null
+let username = null
+let _token   = ""
+let abaAtiva = "todos"
+
+// ── Init ──
+async function init() {
+  const { data } = await _supa.auth.getSession()
+  if (data.session) {
+    logado   = true
+    userId   = data.session.user.id
+    username = data.session.user.user_metadata?.username || data.session.user.email.split("@")[0]
+    _token   = data.session.access_token
+    localStorage.setItem("sl_role",     "user")
+    localStorage.setItem("sl_username", username)
+  }
+  renderConta()
+  await carregarVideos()
+  if (logado) await carregarPlaylists()
+  else renderSidebarSemLogin()
+}
+
+function jwtHeader() {
+  return _token ? { "Authorization": "Bearer " + _token } : {}
+}
+
+// ── Carregar vídeos ──
+async function carregarVideos(tentativa = 1) {
+  const grid = document.getElementById("grid-videos")
+  try {
+    if (tentativa === 1) {
+      grid.innerHTML = '<div class="vazio"><span>⏳</span>Carregando vídeos...</div>'
+      try { await fetch(`${API}/`, { mode: "cors" }) } catch {}
+    }
+    const res  = await fetch(`${API}/videos`)
+    videos     = await res.json()
+    renderVideos(videos)
+  } catch {
+    if (tentativa < 4) {
+      grid.innerHTML = `<div class="vazio"><span>😴</span>Servidor acordando... (${tentativa}/3)</div>`
+      setTimeout(() => carregarVideos(tentativa + 1), tentativa * 3000)
+    } else {
+      grid.innerHTML = '<div class="vazio"><span>❌</span>Não foi possível conectar.</div>'
+    }
+  }
+}
+
+// ── Render grid de vídeos ──
+function renderVideos(lista) {
+  const grid = document.getElementById("grid-videos")
+  if (!lista.length) {
+    grid.innerHTML = '<div class="vazio"><span>🎬</span>Nenhum vídeo encontrado.</div>'
+    return
+  }
+  grid.innerHTML = ""
+  lista.forEach(v => grid.appendChild(criarCardVideo(v)))
+}
+
+function criarCardVideo(v) {
+  const card = document.createElement("div")
+  card.className = "video-card"
+
+  const thumbHtml = v.capa_url
+    ? `<img class="video-thumb" src="${v.capa_url}" alt="${v.titulo}" loading="lazy">`
+    : `<div class="video-thumb-placeholder">🎬</div>`
+
+  const isExterno = !!v.link_externo
+  const tagBadge  = isExterno ? `<span class="video-tag-link">🔗 Link</span>` : ""
+
+  const tagsPills = Array.isArray(v.tags) && v.tags.length
+    ? v.tags.map(t => `<span class="video-tag" onclick="event.stopPropagation();filtrarTag('${t}')">#${t}</span>`).join("")
+    : ""
+
+  card.innerHTML = `
+    <div class="video-thumb-wrap">
+      ${thumbHtml}
+      <div class="video-play-icon"><span>▶</span></div>
+      ${tagBadge}
+    </div>
+    <div class="video-info">
+      <div class="video-titulo">${v.titulo}</div>
+      ${v.autor ? `<div class="video-autor">${v.autor}</div>` : ""}
+      ${v.descricao ? `<div class="video-desc">${v.descricao}</div>` : ""}
+      <div class="video-tags">${tagsPills}</div>
+    </div>
+  `
+  card.onclick = () => abrirPlayer(v)
+  return card
+}
+
+// ── Player ──
+function abrirPlayer(v) {
+  videoAtual = v
+  document.getElementById("modal-titulo").textContent = v.titulo
+  document.getElementById("modal-autor").textContent  = v.autor || ""
+  document.getElementById("modal-desc").textContent   = v.descricao || ""
+
+  // Tags
+  const tagsEl = document.getElementById("modal-tags")
+  tagsEl.innerHTML = Array.isArray(v.tags) && v.tags.length
+    ? v.tags.map(t => `<span class="modal-tag" onclick="filtrarTag('${t}');fecharPlayer()">#${t}</span>`).join("")
+    : ""
+
+  // Botão add playlist
+  document.getElementById("btn-add-pl").style.display = logado ? "inline-flex" : "none"
+
+  // Player
+  const wrap = document.getElementById("modal-video-wrap")
+  // Limpar player anterior
+  const oldPlayer = wrap.querySelector("video, iframe")
+  if (oldPlayer) oldPlayer.remove()
+
+  if (v.link_externo) {
+    // Detectar YouTube
+    const ytMatch = v.link_externo.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)
+    if (ytMatch) {
+      const iframe = document.createElement("iframe")
+      iframe.src = `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1`
+      iframe.allow = "autoplay; fullscreen"
+      iframe.allowFullscreen = true
+      wrap.appendChild(iframe)
+    } else {
+      // Link genérico
+      const a = document.createElement("a")
+      a.href = v.link_externo
+      a.target = "_blank"
+      a.style.cssText = "display:flex;align-items:center;justify-content:center;height:100%;color:#ffd700;font-size:16px;text-decoration:none;"
+      a.textContent = "▶ Abrir vídeo externo"
+      wrap.appendChild(a)
+    }
+  } else if (v.video_url) {
+    const video = document.createElement("video")
+    video.src      = v.video_url
+    video.controls = true
+    video.autoplay = true
+    wrap.appendChild(video)
+  }
+
+  // Links relacionados
+  const relWrap = document.getElementById("modal-relacionados")
+  const relLinks = document.getElementById("modal-rel-links")
+  if (v.links_relacionados) {
+    const links = v.links_relacionados.split("\n").map(l => l.trim()).filter(Boolean)
+    if (links.length) {
+      relLinks.innerHTML = links.map(l =>
+        `<a class="modal-rel-link" href="${l}" target="_blank">🔗 ${l.slice(0, 50)}${l.length > 50 ? "…" : ""}</a>`
+      ).join("")
+      relWrap.style.display = "block"
+    } else {
+      relWrap.style.display = "none"
+    }
+  } else {
+    relWrap.style.display = "none"
+  }
+
+  document.getElementById("modal-player").classList.add("aberto")
+  document.body.style.overflow = "hidden"
+}
+
+function fecharPlayer() {
+  const wrap = document.getElementById("modal-video-wrap")
+  const player = wrap.querySelector("video, iframe, a")
+  if (player) player.remove()
+  document.getElementById("modal-player").classList.remove("aberto")
+  document.body.style.overflow = ""
+  videoAtual = null
+}
+
+function fecharPlayerOverlay(e) {
+  if (e.target === document.getElementById("modal-player")) fecharPlayer()
+}
+
+// ── Filtrar ──
+function filtrar() {
+  const q = document.getElementById("busca-input").value.trim().toLowerCase()
+  if (!q) { renderVideos(videos); return }
+
+  const termos   = q.split(/\s+/)
+  const tags     = termos.filter(t => t.startsWith("#")).map(t => t.slice(1))
+  const textos   = termos.filter(t => !t.startsWith("#"))
+
+  const resultado = videos.filter(v => {
+    const titulo = v.titulo.toLowerCase()
+    const autor  = (v.autor || "").toLowerCase()
+    const desc   = (v.descricao || "").toLowerCase()
+    const vTags  = Array.isArray(v.tags) ? v.tags : []
+    const textoOk = textos.every(t => titulo.includes(t) || autor.includes(t) || desc.includes(t))
+    const tagOk   = tags.every(tb => vTags.some(tl => tl.includes(tb)))
+    return textoOk && tagOk
+  })
+  renderVideos(resultado)
+}
+
+function filtrarTag(tag) {
+  document.getElementById("busca-input").value = "#" + tag
+  filtrar()
+  setAba("todos", document.querySelector(".aba-btn"))
+}
+
+// ── Abas ──
+function setAba(aba, btn) {
+  abaAtiva = aba
+  document.querySelectorAll(".aba-btn").forEach(b => b.classList.remove("ativo"))
+  btn.classList.add("ativo")
+  document.getElementById("secao-todos").style.display              = aba === "todos" ? "" : "none"
+  document.getElementById("secao-minhas-playlists").style.display   = aba === "minhas-playlists" ? "" : "none"
+  document.getElementById("secao-playlists-publicas").style.display = aba === "playlists-publicas" ? "" : "none"
+
+  if (aba === "minhas-playlists")   renderGridPlaylists()
+  if (aba === "playlists-publicas") carregarPlaylistsPublicas()
+}
+
+// ── Playlists ──
+async function carregarPlaylists() {
+  try {
+    const res = await fetch(`${API}/playlists`, { headers: jwtHeader() })
+    playlists = await res.json()
+    renderSidebar()
+  } catch {}
+}
+
+async function carregarPlaylistsPublicas() {
+  const grid = document.getElementById("grid-playlists-publicas")
+  try {
+    const res  = await fetch(`${API}/playlists/publicas`)
+    const data = await res.json()
+    if (!data.length) {
+      grid.innerHTML = '<div class="vazio"><span>📋</span>Nenhuma playlist pública ainda.</div>'
+      return
+    }
+    grid.innerHTML = ""
+    data.forEach(pl => grid.appendChild(criarCardPlaylist(pl, false)))
+  } catch {
+    grid.innerHTML = '<div class="vazio"><span>❌</span>Erro ao carregar playlists.</div>'
+  }
+}
+
+function renderSidebar() {
+  const el = document.getElementById("lista-playlists-sidebar")
+  if (!logado) { renderSidebarSemLogin(); return }
+  if (!playlists.length) {
+    el.innerHTML = '<div style="font-size:12px;color:#555;padding:8px 4px;">Nenhuma playlist ainda.</div>'
+    return
+  }
+  el.innerHTML = ""
+  playlists.forEach(pl => {
+    const div = document.createElement("div")
+    div.className = "playlist-item"
+    div.innerHTML = `
+      <span class="playlist-icon">📋</span>
+      <span class="playlist-nome">${pl.nome}</span>
+      <span class="playlist-count">${(pl.videos || []).length}</span>
+      <div class="playlist-acoes">
+        <button class="pl-btn" onclick="event.stopPropagation();editarPlaylist(${pl.id})" title="Editar">✏️</button>
+        <button class="pl-btn" onclick="event.stopPropagation();deletarPlaylist(${pl.id})" title="Deletar">🗑</button>
+      </div>
+    `
+    div.onclick = () => verPlaylist(pl)
+    el.appendChild(div)
+  })
+}
+
+function renderSidebarSemLogin() {
+  const el = document.getElementById("lista-playlists-sidebar")
+  el.innerHTML = '<div style="font-size:12px;color:#555;padding:8px 4px;">Faça login para criar playlists.</div>'
+}
+
+function renderGridPlaylists() {
+  const grid = document.getElementById("grid-minhas-playlists")
+  if (!logado) {
+    grid.innerHTML = '<div class="vazio"><span>🔒</span>Faça login para ver suas playlists.</div>'
+    return
+  }
+  if (!playlists.length) {
+    grid.innerHTML = '<div class="vazio"><span>📋</span>Você não tem playlists ainda.</div>'
+    return
+  }
+  grid.innerHTML = ""
+  playlists.forEach(pl => grid.appendChild(criarCardPlaylist(pl, true)))
+}
+
+function criarCardPlaylist(pl, editavel) {
+  const card = document.createElement("div")
+  card.className = "video-card"
+  const count = (pl.videos || []).length
+  card.innerHTML = `
+    <div class="video-thumb-wrap" style="background:linear-gradient(135deg,#1a1a1a,#333);display:flex;align-items:center;justify-content:center;">
+      <span style="font-size:48px;">📋</span>
+    </div>
+    <div class="video-info">
+      <div class="video-titulo">${pl.nome}</div>
+      <div class="video-autor">${count} vídeo${count !== 1 ? "s" : ""} · ${pl.publica ? "🌐 Pública" : "🔒 Privada"}</div>
+      ${pl.descricao ? `<div class="video-desc">${pl.descricao}</div>` : ""}
+      ${editavel ? `
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button onclick="event.stopPropagation();editarPlaylist(${pl.id})" style="font-size:12px;padding:4px 10px;">✏️ Editar</button>
+          <button onclick="event.stopPropagation();deletarPlaylist(${pl.id})" style="font-size:12px;padding:4px 10px;background:#c0392b;">🗑 Remover</button>
+        </div>
+      ` : ""}
+    </div>
+  `
+  card.onclick = () => verPlaylist(pl)
+  return card
+}
+
+function verPlaylist(pl) {
+  const idsVideos = pl.videos || []
+  const lista = videos.filter(v => idsVideos.includes(v.id))
+  document.getElementById("busca-input").value = ""
+  setAba("todos", document.querySelector(".aba-btn"))
+  renderVideos(lista.length ? lista : [])
+  document.querySelector(".secao-titulo").textContent = `📋 ${pl.nome}`
+}
+
+// ── Modal nova playlist ──
+function abrirModalNovaPlaylist() {
+  if (!logado) { alert("Faça login para criar playlists."); return }
+  plEditandoId = null
+  document.getElementById("modal-pl-titulo").textContent = "Nova playlist"
+  document.getElementById("pl-nome").value = ""
+  document.getElementById("pl-desc").value = ""
+  document.getElementById("pl-publica").checked = false
+  renderCheckboxVideos(null)
+  fecharModalAddPL()
+  document.getElementById("modal-playlist").classList.add("aberto")
+}
+
+function editarPlaylist(id) {
+  const pl = playlists.find(p => p.id === id)
+  if (!pl) return
+  plEditandoId = id
+  document.getElementById("modal-pl-titulo").textContent = "Editar playlist"
+  document.getElementById("pl-nome").value    = pl.nome
+  document.getElementById("pl-desc").value    = pl.descricao || ""
+  document.getElementById("pl-publica").checked = !!pl.publica
+  renderCheckboxVideos(pl.videos || [])
+  document.getElementById("modal-playlist").classList.add("aberto")
+}
+
+function renderCheckboxVideos(selecionados) {
+  const wrap = document.getElementById("pl-videos-lista")
+  if (!videos.length) { wrap.innerHTML = '<div style="font-size:12px;color:#555;">Nenhum vídeo disponível.</div>'; return }
+  wrap.innerHTML = `<div style="font-size:12px;color:#aaa;margin-bottom:8px;">Selecionar vídeos:</div>`
+  videos.forEach(v => {
+    const checked = selecionados && selecionados.includes(v.id) ? "checked" : ""
+    const div = document.createElement("div")
+    div.className = "pl-video-item"
+    div.innerHTML = `
+      <input type="checkbox" id="plv-${v.id}" value="${v.id}" ${checked}>
+      <label for="plv-${v.id}" style="cursor:pointer;font-size:13px;">${v.titulo}</label>
+    `
+    wrap.appendChild(div)
+  })
+}
+
+async function salvarPlaylist() {
+  const nome    = document.getElementById("pl-nome").value.trim()
+  const descricao = document.getElementById("pl-desc").value.trim()
+  const publica = document.getElementById("pl-publica").checked
+  if (!nome) { alert("Digite um nome."); return }
+
+  const videosSel = [...document.querySelectorAll("#pl-videos-lista input[type=checkbox]:checked")]
+    .map(el => parseInt(el.value))
+
+  const body = { nome, descricao, publica, videos: videosSel }
+
+  try {
+    let res
+    if (plEditandoId) {
+      res = await fetch(`${API}/playlists/${plEditandoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...jwtHeader() },
+        body: JSON.stringify(body)
+      })
+    } else {
+      res = await fetch(`${API}/playlists`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...jwtHeader() },
+        body: JSON.stringify(body)
+      })
+    }
+    const data = await res.json()
+    if (data.status === "ok") {
+      await carregarPlaylists()
+      renderGridPlaylists()
+      fecharModalPL()
+    } else {
+      alert("Erro: " + data.message)
+    }
+  } catch {
+    alert("Erro de conexão.")
+  }
+}
+
+async function deletarPlaylist(id) {
+  if (!confirm("Remover esta playlist?")) return
+  try {
+    const res  = await fetch(`${API}/playlists/${id}`, { method: "DELETE", headers: jwtHeader() })
+    const data = await res.json()
+    if (data.status === "ok") {
+      await carregarPlaylists()
+      renderGridPlaylists()
+    } else {
+      alert("Erro: " + data.message)
+    }
+  } catch {
+    alert("Erro de conexão.")
+  }
+}
+
+// ── Modal adicionar à playlist ──
+function abrirModalAddPlaylist() {
+  if (!logado) { alert("Faça login para usar playlists."); return }
+  const wrap = document.getElementById("add-pl-lista")
+  if (!playlists.length) {
+    wrap.innerHTML = '<div style="font-size:13px;color:#aaa;">Você não tem playlists. Crie uma primeiro.</div>'
+  } else {
+    wrap.innerHTML = ""
+    playlists.forEach(pl => {
+      const jaTemVideo = (pl.videos || []).includes(videoAtual?.id)
+      const div = document.createElement("div")
+      div.className = "pl-video-item"
+      div.innerHTML = `
+        <span style="font-size:16px;">📋</span>
+        <span style="flex:1;font-size:13px;">${pl.nome}</span>
+        <button style="font-size:12px;padding:4px 10px;background:${jaTemVideo ? '#2d6a2d' : ''}" 
+          onclick="addVideoNaPlaylist(${pl.id}, this)">
+          ${jaTemVideo ? "✅ Adicionado" : "+ Adicionar"}
+        </button>
+      `
+      wrap.appendChild(div)
+    })
+  }
+  document.getElementById("modal-add-pl").classList.add("aberto")
+}
+
+async function addVideoNaPlaylist(plId, btn) {
+  if (!videoAtual) return
+  const pl = playlists.find(p => p.id === plId)
+  if (!pl) return
+  const videos_pl = [...(pl.videos || [])]
+  if (!videos_pl.includes(videoAtual.id)) videos_pl.push(videoAtual.id)
+
+  try {
+    const res = await fetch(`${API}/playlists/${plId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...jwtHeader() },
+      body: JSON.stringify({ videos: videos_pl })
+    })
+    const data = await res.json()
+    if (data.status === "ok") {
+      pl.videos = videos_pl
+      btn.textContent = "✅ Adicionado"
+      btn.style.background = "#2d6a2d"
+    }
+  } catch {
+    alert("Erro ao adicionar.")
+  }
+}
+
+function fecharModalPL()          { document.getElementById("modal-playlist").classList.remove("aberto") }
+function fecharModalPLOverlay(e)  { if (e.target === document.getElementById("modal-playlist")) fecharModalPL() }
+function fecharModalAddPL()       { document.getElementById("modal-add-pl").classList.remove("aberto") }
+function fecharModalAddPLOverlay(e){ if (e.target === document.getElementById("modal-add-pl")) fecharModalAddPL() }
+
+// ── Conta ──
+function renderConta() {
+  const wrap = document.getElementById("btn-conta-wrap")
+  if (logado) {
+    wrap.innerHTML = `
+      <div style="position:relative;display:inline-block">
+        <button id="conta-btn" style="background:rgba(255,215,0,0.1);color:#ffd700;border:1px solid rgba(255,215,0,0.3);border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;">
+          👤 ${username} ▾
+        </button>
+        <div id="conta-menu" style="display:none;position:absolute;right:0;top:110%;background:#111;border:1px solid rgba(255,215,0,0.2);border-radius:8px;min-width:160px;box-shadow:0 4px 20px rgba(0,0,0,0.8);z-index:100;">
+          <div style="padding:10px 14px;font-size:12px;color:#888;border-bottom:1px solid #222;">${username}</div>
+          <button onclick="sair()" style="width:100%;text-align:left;background:none;border:none;color:#f88;padding:10px 14px;font-size:13px;cursor:pointer;">🚪 Sair</button>
+        </div>
+      </div>`
+    document.getElementById("conta-btn").addEventListener("click", e => {
+      e.stopPropagation()
+      const m = document.getElementById("conta-menu")
+      m.style.display = m.style.display === "none" ? "block" : "none"
+    })
+    document.addEventListener("click", () => {
+      const m = document.getElementById("conta-menu")
+      if (m) m.style.display = "none"
+    })
+  } else {
+    wrap.innerHTML = `<button onclick="location.href='login.html'" style="background:#fff;color:#111;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:bold;cursor:pointer;">Entrar</button>`
+  }
+}
+
+window.sair = async function() {
+  try { await _supa.auth.signOut() } catch {}
+  localStorage.clear()
+  sessionStorage.clear()
+  location.href = "index.html"
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") { fecharPlayer(); fecharModalPL(); fecharModalAddPL() } })
+
+init()
+</script>
+
+</body>
+</html>
