@@ -284,8 +284,12 @@
 
     <!-- Painel: Link de playlist -->
     <div id="import-painel-link" class="import-painel ativo">
+      <p style="font-size:12px;color:#888;margin-bottom:10px;padding:8px;background:#f5f5f5;border-radius:6px;border-left:3px solid #ffd700;">
+        💡 Para importar playlists do YouTube vídeo a vídeo, adicione <strong>YOUTUBE_API_KEY</strong> nas variáveis de ambiente do Render.
+        <a href="https://console.cloud.google.com" target="_blank" style="color:#0070f3;">Como obter →</a>
+      </p>
       <input id="pl-import-url"  placeholder="URL da playlist (YouTube, etc.)">
-      <input id="pl-import-nome" placeholder="Nome da playlist">
+      <input id="pl-import-nome" placeholder="Nome da playlist no site">
       <input id="pl-import-autor" placeholder="Autor (opcional)">
       <input id="pl-import-tags" placeholder="Tags: #tag1 #tag2 (opcional)">
       <div class="tags-preview" id="pl-import-tags-preview" style="margin-bottom:10px;"></div>
@@ -1098,15 +1102,24 @@ async function importarPlaylistLink() {
     })
     const data = await res.json()
     if (data.status === "ok") {
-      const msg = data.tipo === "youtube_playlist"
-        ? `✅ Playlist do YouTube importada como vídeo embedado!`
-        : `✅ Link importado com sucesso!`
+      let msg = ""
+      if (data.tipo === "youtube_playlist_completa") {
+        msg = `✅ ${data.importados} vídeo${data.importados !== 1 ? "s" : ""} importados da playlist! Uma playlist foi criada no site com todos eles.`
+      } else if (data.tipo === "link_simples") {
+        msg = `✅ Link importado como vídeo!`
+      } else {
+        msg = `✅ Importado com sucesso!`
+      }
       mostrarResultado(resEl, msg, "ok")
       document.getElementById("pl-import-url").value  = ""
       document.getElementById("pl-import-nome").value = ""
       carregarVideosAdmin()
     } else {
-      mostrarResultado(resEl, "Erro: " + data.message, "erro")
+      // Se o erro for sobre API key, mostrar instrução clara
+      const msgErro = data.message.includes("YOUTUBE_API_KEY")
+        ? `⚠️ Para importar playlists do YouTube vídeo a vídeo, adicione a variável YOUTUBE_API_KEY no Render.\n\nComo obter: acesse console.cloud.google.com → crie um projeto → ative a "YouTube Data API v3" → crie uma chave de API.`
+        : "Erro: " + data.message
+      mostrarResultado(resEl, msgErro, "erro")
     }
   } catch {
     mostrarResultado(resEl, "Erro de conexão.", "erro")
