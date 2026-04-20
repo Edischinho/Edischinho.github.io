@@ -115,6 +115,15 @@
       font-size: 16px; font-weight: bold; margin-bottom: 16px;
       display: flex; align-items: center; gap: 8px;
     }
+    .btn-voltar-todos {
+      display: none; align-items: center; gap: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px; padding: 6px 14px;
+      font-size: 13px; cursor: pointer; margin-bottom: 16px;
+      transition: background 0.15s;
+    }
+    .btn-voltar-todos:hover { background: #333; }
+    .btn-voltar-todos.visivel { display: inline-flex; }
     .videos-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -300,7 +309,8 @@
   <!-- Conteúdo -->
   <div class="conteudo" id="conteudo">
     <div id="secao-todos">
-      <div class="secao-titulo">🎬 Todos os vídeos</div>
+      <button class="btn-voltar-todos" id="btn-voltar-todos" onclick="voltarTodos()">← Todos os vídeos</button>
+      <div class="secao-titulo" id="titulo-secao-todos">🎬 Todos os vídeos</div>
       <div class="videos-grid" id="grid-videos"></div>
     </div>
     <div id="secao-minhas-playlists" style="display:none">
@@ -609,6 +619,8 @@ function capturarFrame(videoEl) {
   } catch {}
 }
 function filtrar() {
+  document.getElementById("titulo-secao-todos").textContent = "🎬 Todos os vídeos"
+  document.getElementById("btn-voltar-todos").classList.remove("visivel")
   const q = document.getElementById("busca-input").value.trim().toLowerCase()
   if (!q) { renderVideos(videos); return }
 
@@ -746,7 +758,15 @@ function verPlaylist(pl) {
   document.getElementById("busca-input").value = ""
   setAba("todos", document.querySelector(".aba-btn"))
   renderVideos(lista.length ? lista : [])
-  document.querySelector(".secao-titulo").textContent = `📋 ${pl.nome}`
+  document.getElementById("titulo-secao-todos").textContent = `📋 ${pl.nome}`
+  document.getElementById("btn-voltar-todos").classList.add("visivel")
+}
+
+function voltarTodos() {
+  document.getElementById("busca-input").value = ""
+  document.getElementById("titulo-secao-todos").textContent = "🎬 Todos os vídeos"
+  document.getElementById("btn-voltar-todos").classList.remove("visivel")
+  renderVideos(videos)
 }
 
 // ── Modal nova playlist ──
