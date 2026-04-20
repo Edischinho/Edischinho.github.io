@@ -452,7 +452,160 @@ app.delete("/videos/:id", exigirAdmin, async (req, res) => {
   }
 })
 
-// ─── PLAYLISTS (usuário) ──────────────────────────────────
+// ─── PLAYLIST EM LOTE (admin) ────────────────────────────
+
+// Importar múltiplos vídeos de uma pasta (upload em lote)
+app.post("/addPlaylistBatch", exigirAdmin, upload.fields([
+  { name: "videos",   maxCount: 50 },
+  { name: "capas",    maxCount: 50 }
+]), async (req, res) => {
+  const videoFiles = req.files?.videos  || []
+  const capaFiles  = req.files?.capas   || []
+
+  try {
+    const {
+      playlist_nome = "Playlist importada",
+      autor = "", tags: tagsRaw = "", publica = "false"
+    } = req.body
+    const tags = (tagsRaw.match(/#[\wÀ-ú]+/g) || []).map(t => t.slice(1).toLowerCase())
+
+    if (!videoFiles.length)
+      return res.status(400).json({ status: "erro", message: "Nenhum vídeo enviado." })
+
+    const extsOk  = ["mp4","webm","mov","avi","mkv"]
+    const extsCapa = ["png","jpg","jpeg","webp"]
+    const resultados = []
+    const idsVideos  = []
+
+    for (let i = 0; i < videoFiles.length; i++) {
+      const vf  = videoFiles[i]
+      const cf  = capaFiles[i] || null
+      const ext = (vf.originalname.split(".").pop() || "").toLowerCase()
+
+      if (!extsOk.includes(ext)) {
+        fs.unlinkSync(vf.path)
+        if (cf) fs.unlinkSync(cf.path)
+        resultados.push({ nome: vf.originalname, status: "ignorado", motivo: "extensão inválida" })
+        continue
+      }
+
+      // Título = nome do arquivo sem extensão
+      const titulo = vf.originalname.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ")
+      const nomeVideo = `video-${Date.now()}-${i}-${titulo.replace(/[^a-zA-Z0-9À-ú]/g,"_")}.${ext}`
+
+      let videoUrl, capaUrl = null
+      try {
+        videoUrl = await uploadStorage(vf.path, nomeVideo, vf.mimetype)
+        fs.unlinkSync(vf.path)
+      } catch (err) {
+        if (fs.existsSync(vf.path)) fs.unlinkSync(vf.path)
+        resultados.push({ nome: vf.originalname, status: "erro", motivo: err.message })
+        continue
+      }
+
+      // Capa correspondente (mesmo índice)
+      if (cf) {
+        const extCapa = (cf.originalname.split(".").pop() || "").toLowerCase()
+        if (extsCapa.includes(extCapa)) {
+          try {
+            const nomeCapa = `capa-video-${Date.now()}-${i}.${extCapa}`
+            capaUrl = await uploadStorage(cf.path, nomeCapa, cf.mimetype)
+          } catch {}
+        }
+        if (fs.existsSync(cf.path)) fs.unlinkSync(cf.path)
+      }
+
+      const { data: inserted, error: dbError } = await supabase.from("videos")
+        .insert([{ titulo, autor, tags, video_url: videoUrl, capa_url: capaUrl }])
+        .select("id").single()
+
+      if (dbError) {
+        resultados.push({ nome: vf.originalname, status: "erro", motivo: dbError.message })
+        continue
+      }
+      idsVideos.push(inserted.id)
+      resultados.push({ nome: vf.originalname, status: "ok", titulo, id: inserted.id })
+    }
+
+    // Criar playlist com todos os vídeos importados com sucesso
+    let playlistId = null
+    if (idsVideos.length) {
+      const { data: pl } = await supabase.from("playlists").insert([{
+        nome: playlist_nome, publica: publica === "true", videos: idsVideos,
+        user_id: "00000000-0000-0000-0000-000000000000"
+      }]).select("id").single()
+      playlistId = pl?.id || null
+    }
+
+    res.json({ status: "ok", total: videoFiles.length, importados: idsVideos.length, playlistId, resultados })
+  } catch (err) {
+    console.error("Erro addPlaylistBatch:", err)
+    // Limpar arquivos temporários restantes
+    ;[...(videoFiles), ...(capaFiles)].forEach(f => { if (fs.existsSync(f.path)) fs.unlinkSync(f.path) })
+    res.status(500).json({ status: "erro", message: "Erro ao importar playlist: " + err.message })
+  }
+})
+
+// Importar playlist via link do YouTube (retorna metadados públicos)
+app.post("/importPlaylistLink", exigirAdmin, async (req, res) => {
+  const { playlist_url, playlist_nome, autor = "", tags: tagsRaw = "" } = req.body
+  if (!playlist_url) return res.status(400).json({ status: "erro", message: "URL obrigatória." })
+
+  const tags = (tagsRaw.match(/#[\wÀ-ú]+/g) || []).map(t => t.slice(1).toLowerCase())
+
+  try {
+    // Extrair ID da playlist do YouTube
+    const plMatch = playlist_url.match(/[?&]list=([^&\s]+)/)
+    if (!plMatch) {
+      // Se não for playlist do YouTube, salvar como link único
+      const { data: inserted } = await supabase.from("videos")
+        .insert([{
+          titulo: playlist_nome || "Playlist importada",
+          autor, tags,
+          link_externo: playlist_url,
+          playlist_link: playlist_url
+        }]).select("id").single()
+
+      return res.json({ status: "ok", tipo: "link_simples", ids: [inserted?.id] })
+    }
+
+    const playlistId = plMatch[1]
+
+    // Buscar vídeos da playlist via YouTube oEmbed / noembed (sem API key)
+    // Estratégia: salvar a playlist inteira como um único vídeo com link
+    const { data: inserted } = await supabase.from("videos")
+      .insert([{
+        titulo: playlist_nome || `Playlist YouTube`,
+        autor, tags,
+        link_externo: `https://www.youtube.com/playlist?list=${playlistId}`,
+        playlist_link: playlist_url,
+        capa_url: null
+      }]).select("id").single()
+
+    res.json({
+      status: "ok",
+      tipo: "youtube_playlist",
+      playlistId,
+      ids: [inserted?.id],
+      embed_url: `https://www.youtube.com/embed/videoseries?list=${playlistId}`
+    })
+  } catch (err) {
+    console.error("Erro importPlaylistLink:", err)
+    res.status(500).json({ status: "erro", message: "Erro ao importar: " + err.message })
+  }
+})
+
+// Playlists admin (criadas em lote) — listadas como públicas
+app.get("/playlists_admin", async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("playlists")
+      .select("*").eq("publica", true).order("id", { ascending: false })
+    if (error) throw error
+    res.json(data)
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao buscar playlists admin." })
+  }
+})
 
 // Listar playlists do usuário
 app.get("/playlists", exigirUsuario, async (req, res) => {
