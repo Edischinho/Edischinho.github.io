@@ -552,43 +552,108 @@ app.post("/importPlaylistLink", exigirAdmin, async (req, res) => {
   if (!playlist_url) return res.status(400).json({ status: "erro", message: "URL obrigatória." })
 
   const tags = (tagsRaw.match(/#[\wÀ-ú]+/g) || []).map(t => t.slice(1).toLowerCase())
+  const YT_KEY = process.env.YOUTUBE_API_KEY
 
   try {
     // Extrair ID da playlist do YouTube
     const plMatch = playlist_url.match(/[?&]list=([^&\s]+)/)
     if (!plMatch) {
-      // Se não for playlist do YouTube, salvar como link único
+      // Link genérico — salva como vídeo único
       const { data: inserted } = await supabase.from("videos")
-        .insert([{
-          titulo: playlist_nome || "Playlist importada",
-          autor, tags,
-          link_externo: playlist_url,
-          playlist_link: playlist_url
-        }]).select("id").single()
+        .insert([{ titulo: playlist_nome || "Vídeo importado", autor, tags, link_externo: playlist_url }])
+        .select("id").single()
+      return res.json({ status: "ok", tipo: "link_simples", total: 1, ids: [inserted?.id] })
+    }
 
-      return res.json({ status: "ok", tipo: "link_simples", ids: [inserted?.id] })
+    if (!YT_KEY) {
+      return res.status(400).json({
+        status: "erro",
+        message: "Configure a variável YOUTUBE_API_KEY no Render para importar playlists do YouTube vídeo a vídeo."
+      })
     }
 
     const playlistId = plMatch[1]
 
-    // Buscar vídeos da playlist via YouTube oEmbed / noembed (sem API key)
-    // Estratégia: salvar a playlist inteira como um único vídeo com link
-    const { data: inserted } = await supabase.from("videos")
-      .insert([{
-        titulo: playlist_nome || `Playlist YouTube`,
-        autor, tags,
-        link_externo: `https://www.youtube.com/playlist?list=${playlistId}`,
-        playlist_link: playlist_url,
-        capa_url: null
+    // Buscar todos os vídeos da playlist via YouTube Data API v3
+    const https   = require("https")
+    const idsVideosYT = []
+    let nextPageToken = ""
+
+    const fetchPagina = (token) => new Promise((resolve, reject) => {
+      const params = new URLSearchParams({
+        part: "snippet",
+        playlistId,
+        maxResults: "50",
+        key: YT_KEY,
+        ...(token ? { pageToken: token } : {})
+      })
+      const url = `https://www.googleapis.com/youtube/v3/playlistItems?${params}`
+      https.get(url, r => {
+        let d = ""
+        r.on("data", c => d += c)
+        r.on("end", () => {
+          try { resolve(JSON.parse(d)) }
+          catch { reject(new Error("Resposta inválida da API do YouTube")) }
+        })
+      }).on("error", reject)
+    })
+
+    // Paginar até buscar todos os vídeos
+    do {
+      const page = await fetchPagina(nextPageToken)
+      if (page.error) throw new Error(page.error.message)
+      for (const item of (page.items || [])) {
+        const s = item.snippet
+        if (s?.resourceId?.videoId) {
+          idsVideosYT.push({
+            videoId: s.resourceId.videoId,
+            titulo:  s.title,
+            desc:    s.description || "",
+            thumb:   s.thumbnails?.high?.url || s.thumbnails?.default?.url || null,
+            posicao: s.position
+          })
+        }
+      }
+      nextPageToken = page.nextPageToken || ""
+    } while (nextPageToken)
+
+    if (!idsVideosYT.length) {
+      return res.json({ status: "ok", tipo: "youtube_playlist", total: 0, ids: [], message: "Nenhum vídeo encontrado na playlist." })
+    }
+
+    // Inserir cada vídeo no banco
+    const idsInseridos = []
+    for (const v of idsVideosYT) {
+      const link = `https://www.youtube.com/watch?v=${v.videoId}`
+      const { data: inserted } = await supabase.from("videos").insert([{
+        titulo:       v.titulo,
+        autor,
+        descricao:    v.desc.slice(0, 500),
+        tags,
+        link_externo: link,
+        capa_url:     v.thumb,
+        playlist_link: playlist_url
       }]).select("id").single()
+      if (inserted?.id) idsInseridos.push(inserted.id)
+    }
+
+    // Criar playlist no banco agrupando todos os vídeos
+    const nomeFinal = playlist_nome || `Playlist YouTube`
+    await supabase.from("playlists").insert([{
+      nome:    nomeFinal,
+      publica: true,
+      videos:  idsInseridos,
+      user_id: "00000000-0000-0000-0000-000000000000"
+    }])
 
     res.json({
       status: "ok",
-      tipo: "youtube_playlist",
-      playlistId,
-      ids: [inserted?.id],
-      embed_url: `https://www.youtube.com/embed/videoseries?list=${playlistId}`
+      tipo:   "youtube_playlist_completa",
+      total:  idsVideosYT.length,
+      importados: idsInseridos.length,
+      ids:    idsInseridos
     })
+
   } catch (err) {
     console.error("Erro importPlaylistLink:", err)
     res.status(500).json({ status: "erro", message: "Erro ao importar: " + err.message })
