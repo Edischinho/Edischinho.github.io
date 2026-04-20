@@ -575,28 +575,38 @@ app.post("/importPlaylistLink", exigirAdmin, async (req, res) => {
     const playlistId = plMatch[1]
 
     // Buscar todos os vídeos da playlist via YouTube Data API v3
-    const https   = require("https")
-    const idsVideosYT = []
-    let nextPageToken = ""
+    const https = require("https")
 
-    const fetchPagina = (token) => new Promise((resolve, reject) => {
-      const params = new URLSearchParams({
-        part: "snippet",
-        playlistId,
-        maxResults: "50",
-        key: YT_KEY,
-        ...(token ? { pageToken: token } : {})
-      })
-      const url = `https://www.googleapis.com/youtube/v3/playlistItems?${params}`
+    const fetchUrl = (url) => new Promise((resolve, reject) => {
       https.get(url, r => {
         let d = ""
         r.on("data", c => d += c)
-        r.on("end", () => {
-          try { resolve(JSON.parse(d)) }
-          catch { reject(new Error("Resposta inválida da API do YouTube")) }
-        })
+        r.on("end", () => { try { resolve(JSON.parse(d)) } catch { reject(new Error("Resposta inválida")) } })
       }).on("error", reject)
     })
+
+    // Buscar metadados da playlist (nome, descrição, canal)
+    const paramsPlaylist = new URLSearchParams({ part: "snippet", id: playlistId, key: YT_KEY })
+    const plInfo = await fetchUrl(`https://www.googleapis.com/youtube/v3/playlists?${paramsPlaylist}`)
+    if (plInfo.error) throw new Error(plInfo.error.message)
+
+    const plSnippet      = plInfo.items?.[0]?.snippet || {}
+    const nomeDaPlaylist  = playlist_nome || plSnippet.title        || "Playlist YouTube"
+    const descDaPlaylist  = plSnippet.description                   || ""
+    const autorDaPlaylist = autor         || plSnippet.channelTitle || ""
+    const thumbPlaylist   = plSnippet.thumbnails?.high?.url         || null
+
+    // Buscar itens da playlist (paginado)
+    const idsVideosYT = []
+    let nextPageToken = ""
+
+    const fetchPagina = (token) => {
+      const params = new URLSearchParams({
+        part: "snippet", playlistId, maxResults: "50", key: YT_KEY,
+        ...(token ? { pageToken: token } : {})
+      })
+      return fetchUrl(`https://www.googleapis.com/youtube/v3/playlistItems?${params}`)
+    }
 
     // Paginar até buscar todos os vídeos
     do {
@@ -626,32 +636,39 @@ app.post("/importPlaylistLink", exigirAdmin, async (req, res) => {
     for (const v of idsVideosYT) {
       const link = `https://www.youtube.com/watch?v=${v.videoId}`
       const { data: inserted } = await supabase.from("videos").insert([{
-        titulo:       v.titulo,
-        autor,
-        descricao:    v.desc.slice(0, 500),
+        titulo:        v.titulo,
+        autor:         autorDaPlaylist,
+        descricao:     v.desc.slice(0, 500),
         tags,
-        link_externo: link,
-        capa_url:     v.thumb,
+        link_externo:  link,
+        capa_url:      v.thumb,
         playlist_link: playlist_url
       }]).select("id").single()
       if (inserted?.id) idsInseridos.push(inserted.id)
     }
 
     // Criar playlist no banco agrupando todos os vídeos
-    const nomeFinal = playlist_nome || `Playlist YouTube`
-    await supabase.from("playlists").insert([{
-      nome:    nomeFinal,
-      publica: true,
-      videos:  idsInseridos,
-      user_id: "00000000-0000-0000-0000-000000000000"
-    }])
+    const { data: plCriada } = await supabase.from("playlists").insert([{
+      nome:      nomeDaPlaylist,
+      descricao: descDaPlaylist.slice(0, 1000),
+      publica:   true,
+      videos:    idsInseridos,
+      user_id:   "00000000-0000-0000-0000-000000000000"
+    }]).select("id, nome, descricao").single()
 
     res.json({
-      status: "ok",
-      tipo:   "youtube_playlist_completa",
-      total:  idsVideosYT.length,
+      status:     "ok",
+      tipo:       "youtube_playlist_completa",
+      total:      idsVideosYT.length,
       importados: idsInseridos.length,
-      ids:    idsInseridos
+      ids:        idsInseridos,
+      playlist: {
+        id:        plCriada?.id,
+        nome:      nomeDaPlaylist,
+        descricao: descDaPlaylist,
+        autor:     autorDaPlaylist,
+        thumb:     thumbPlaylist
+      }
     })
 
   } catch (err) {
@@ -660,7 +677,41 @@ app.post("/importPlaylistLink", exigirAdmin, async (req, res) => {
   }
 })
 
-// Playlists admin (criadas em lote) — listadas como públicas
+// Editar playlist pelo admin (sem JWT de usuário)
+app.patch("/playlists_admin/:id", exigirAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { nome, descricao, publica, videos } = req.body
+    const updates = {}
+    if (nome      !== undefined) updates.nome      = String(nome).slice(0, 200)
+    if (descricao !== undefined) updates.descricao = String(descricao).slice(0, 1000)
+    if (publica   !== undefined) updates.publica   = !!publica
+    if (videos    !== undefined) updates.videos    = videos
+
+    if (!Object.keys(updates).length)
+      return res.status(400).json({ status: "erro", message: "Nada para atualizar." })
+
+    const { error } = await supabase.from("playlists").update(updates).eq("id", id)
+    if (error) throw error
+    res.json({ status: "ok" })
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao editar playlist." })
+  }
+})
+
+// Deletar playlist pelo admin
+app.delete("/playlists_admin/:id", exigirAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { error } = await supabase.from("playlists").delete().eq("id", id)
+    if (error) throw error
+    res.json({ status: "ok" })
+  } catch {
+    res.status(500).json({ status: "erro", message: "Erro ao deletar playlist." })
+  }
+})
+
+// Listar playlists públicas (admin)
 app.get("/playlists_admin", async (req, res) => {
   try {
     const { data, error } = await supabase.from("playlists")
