@@ -130,9 +130,100 @@
 
   <h2>Livros Cadastrados</h2>
   <div id="livros-admin"></div>
+
+  <hr>
+
+  <!-- ── SEÇÃO DE VÍDEOS ── -->
+  <h2>Adicionar Vídeo</h2>
+  <div class="form-wrap" id="form-video">
+    <input id="v-titulo" placeholder="Título do vídeo" required>
+    <input id="v-autor"  placeholder="Autor (opcional)">
+    <textarea id="v-descricao" placeholder="Descrição (opcional)" rows="3"></textarea>
+    <div class="tags-input-wrap">
+      <input id="v-tags" placeholder="Tags: #documentario #tech (separe com espaço)">
+      <div class="tags-preview" id="v-tags-preview"></div>
+    </div>
+
+    <!-- Arquivo de vídeo OU link -->
+    <div style="margin-bottom:10px;">
+      <label style="font-size:13px;color:#666;display:block;margin-bottom:6px;">Vídeo (arquivo ou link — preencha um dos dois):</label>
+      <label class="file-label">
+        Escolher arquivo de vídeo (mp4, webm, mov — até 100MB)
+        <input type="file" id="v-arquivo" accept="video/*">
+      </label>
+      <span id="v-file-name">Nenhum arquivo selecionado</span>
+      <input id="v-link" placeholder="Ou cole um link (YouTube, etc.)">
+    </div>
+
+    <!-- Capa -->
+    <div class="capa-preview-wrap">
+      <label class="file-label">
+        Capa do vídeo (imagem, opcional)
+        <input type="file" id="v-capa" accept="image/*">
+      </label>
+      <span id="v-capa-name">Nenhuma capa selecionada</span>
+      <img id="v-capa-preview" class="capa-preview" alt="Preview da capa">
+    </div>
+
+    <!-- Links relacionados -->
+    <textarea id="v-links-rel" placeholder="Links relacionados (um por linha, opcional)" rows="3"></textarea>
+
+    <!-- Playlist link -->
+    <input id="v-playlist-link" placeholder="Link de playlist (opcional)">
+
+    <button onclick="addVideo()" id="btn-enviar-video">Enviar Vídeo</button>
+
+    <!-- Barra de progresso -->
+    <div class="progress-wrap" id="v-progress-wrap">
+      <div class="progress-label">
+        <span id="v-progress-texto">Enviando...</span>
+        <span id="v-progress-pct">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="v-progress-fill"></div>
+      </div>
+    </div>
+    <p id="v-status-msg" style="display:none"></p>
+  </div>
+
+  <hr>
+  <h2>Vídeos Cadastrados</h2>
+  <div id="videos-admin"></div>
 </div>
 
-<!-- ── Modal de edição ── -->
+<!-- ── Modal edição de vídeo ── -->
+<div class="modal-overlay" id="modal-video-overlay" onclick="fecharModalVideo(event)">
+  <div class="modal">
+    <h3>✏️ Editar Vídeo</h3>
+    <div class="capa-atual" id="edit-v-capa-atual" style="display:none">
+      <img id="edit-v-capa-img" src="" alt="Capa atual">
+      <span>Capa atual</span>
+    </div>
+    <div class="capa-preview-wrap">
+      <label class="file-label">
+        Trocar capa (opcional)
+        <input type="file" id="edit-v-capa" accept="image/*">
+      </label>
+      <span id="edit-v-capa-name">Nenhuma capa selecionada</span>
+      <img id="edit-v-capa-preview" class="capa-preview" alt="Nova capa">
+    </div>
+    <input  id="edit-v-titulo"    placeholder="Título">
+    <input  id="edit-v-autor"     placeholder="Autor">
+    <textarea id="edit-v-descricao" placeholder="Descrição" rows="3"></textarea>
+    <div class="tags-input-wrap">
+      <input id="edit-v-tags" placeholder="#tag1 #tag2 ...">
+      <div class="tags-preview" id="edit-v-tags-preview"></div>
+    </div>
+    <input id="edit-v-link"      placeholder="Link externo (YouTube, etc.)">
+    <textarea id="edit-v-links-rel" placeholder="Links relacionados (um por linha)" rows="3"></textarea>
+    <input id="edit-v-playlist-link" placeholder="Link de playlist">
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="fecharModalVideo()">Cancelar</button>
+      <button onclick="salvarEdicaoVideo()">💾 Salvar</button>
+    </div>
+    <p id="edit-v-status" style="display:none;margin-top:10px"></p>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-overlay" onclick="fecharModal(event)">
   <div class="modal">
     <h3>✏️ Editar Livro</h3>
@@ -471,6 +562,252 @@ function mostrarEditStatus(msg, tipo) {
 }
 
 carregarLivrosAdmin()
+
+// ════════════════════════════════════════════════
+//  VÍDEOS
+// ════════════════════════════════════════════════
+let idVideoEditando = null
+
+document.getElementById("v-tags").addEventListener("input", function() {
+  const m = this.value.match(/#[\wÀ-ú]+/g) || []
+  document.getElementById("v-tags-preview").innerHTML = m.map(t => `<span class="tag-pill">${t}</span>`).join("")
+})
+document.getElementById("edit-v-tags").addEventListener("input", function() {
+  const m = this.value.match(/#[\wÀ-ú]+/g) || []
+  document.getElementById("edit-v-tags-preview").innerHTML = m.map(t => `<span class="tag-pill">${t}</span>`).join("")
+})
+document.getElementById("v-arquivo").addEventListener("change", function() {
+  document.getElementById("v-file-name").textContent = this.files[0] ? this.files[0].name : "Nenhum arquivo selecionado"
+})
+document.getElementById("v-capa").addEventListener("change", function() {
+  const file = this.files[0]
+  document.getElementById("v-capa-name").textContent = file ? file.name : "Nenhuma capa selecionada"
+  const preview = document.getElementById("v-capa-preview")
+  if (file) { preview.src = URL.createObjectURL(file); preview.classList.add("visivel") }
+  else preview.classList.remove("visivel")
+})
+document.getElementById("edit-v-capa").addEventListener("change", function() {
+  const file = this.files[0]
+  document.getElementById("edit-v-capa-name").textContent = file ? file.name : "Nenhuma capa selecionada"
+  const preview = document.getElementById("edit-v-capa-preview")
+  if (file) { preview.src = URL.createObjectURL(file); preview.classList.add("visivel") }
+  else preview.classList.remove("visivel")
+})
+
+async function addVideo() {
+  const titulo       = document.getElementById("v-titulo").value.trim()
+  const autor        = document.getElementById("v-autor").value.trim()
+  const descricao    = document.getElementById("v-descricao").value.trim()
+  const tags         = document.getElementById("v-tags").value.trim()
+  const arquivo      = document.getElementById("v-arquivo").files[0]
+  const capa         = document.getElementById("v-capa").files[0]
+  const link         = document.getElementById("v-link").value.trim()
+  const linksRel     = document.getElementById("v-links-rel").value.trim()
+  const playlistLink = document.getElementById("v-playlist-link").value.trim()
+
+  if (!titulo)           { mostrarVStatus("Digite o título do vídeo.", "erro"); return }
+  if (!arquivo && !link) { mostrarVStatus("Selecione um arquivo ou cole um link.", "erro"); return }
+
+  const formData = new FormData()
+  formData.append("titulo", titulo); formData.append("autor", autor)
+  formData.append("descricao", descricao); formData.append("tags", tags)
+  formData.append("link", link); formData.append("links_relacionados", linksRel)
+  formData.append("playlist_link", playlistLink)
+  if (arquivo) formData.append("arquivo", arquivo)
+  if (capa)    formData.append("capa", capa)
+
+  const btn = document.getElementById("btn-enviar-video")
+  btn.disabled = true; btn.textContent = "Enviando..."
+  document.getElementById("v-status-msg").style.display = "none"
+
+  const progressWrap = document.getElementById("v-progress-wrap")
+  const progressFill = document.getElementById("v-progress-fill")
+  const progressPct  = document.getElementById("v-progress-pct")
+  const progressTxt  = document.getElementById("v-progress-texto")
+  progressWrap.classList.add("visivel")
+  progressFill.style.width = "0%"; progressFill.className = "progress-bar-fill"
+  progressTxt.textContent = "Enviando vídeo..."; progressPct.textContent = "0%"
+
+  const xhr = new XMLHttpRequest()
+  xhr.upload.addEventListener("progress", e => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 90)
+      progressFill.style.width = pct + "%"; progressPct.textContent = pct + "%"
+      progressTxt.textContent = pct < 50 ? "Enviando vídeo..." : pct < 85 ? "Processando..." : "Quase lá..."
+    }
+  })
+  xhr.addEventListener("load", () => {
+    progressFill.style.width = "100%"; progressPct.textContent = "100%"
+    try {
+      const data = JSON.parse(xhr.responseText)
+      if (data.status === "ok") {
+        progressFill.classList.add("concluido")
+        progressTxt.textContent = "✅ Vídeo enviado com sucesso!"
+        mostrarVStatus("✅ Vídeo enviado com sucesso!", "ok")
+        ;["v-titulo","v-autor","v-descricao","v-tags","v-arquivo","v-capa","v-link","v-links-rel","v-playlist-link"]
+          .forEach(id => document.getElementById(id).value = "")
+        document.getElementById("v-tags-preview").innerHTML = ""
+        document.getElementById("v-file-name").textContent = "Nenhum arquivo selecionado"
+        document.getElementById("v-capa-name").textContent = "Nenhuma capa selecionada"
+        document.getElementById("v-capa-preview").classList.remove("visivel")
+        carregarVideosAdmin()
+        setTimeout(() => progressWrap.classList.remove("visivel"), 3000)
+      } else {
+        progressFill.classList.add("erro"); progressTxt.textContent = "Erro: " + data.message
+        mostrarVStatus("Erro: " + data.message, "erro")
+      }
+    } catch { progressFill.classList.add("erro"); progressTxt.textContent = "Erro ao processar." }
+    btn.disabled = false; btn.textContent = "Enviar Vídeo"
+  })
+  xhr.addEventListener("error", () => {
+    progressFill.classList.add("erro"); progressTxt.textContent = "Erro de conexão."
+    mostrarVStatus("Erro de conexão.", "erro")
+    btn.disabled = false; btn.textContent = "Enviar Vídeo"
+  })
+  xhr.open("POST", `${API}/addVideo`)
+  xhr.setRequestHeader("Authorization", `Bearer ${localStorage.getItem("sl_admin_token") || ""}`)
+  xhr.send(formData)
+}
+
+async function carregarVideosAdmin(tentativa = 1) {
+  const div = document.getElementById("videos-admin")
+  try {
+    const res    = await fetch(`${API}/videos`)
+    const videos = await res.json()
+    if (!videos.length) { div.innerHTML = "<p>Nenhum vídeo cadastrado ainda.</p>"; return }
+    div.innerHTML = videos.map(v => {
+      const tituloEsc   = (v.titulo || "").replace(/'/g, "\\'")
+      const autorEsc    = (v.autor  || "").replace(/'/g, "\\'")
+      const descEsc     = (v.descricao || "").replace(/'/g, "\\'")
+      const capaEsc     = (v.capa_url || "").replace(/'/g, "\\'")
+      const linkEsc     = (v.link_externo || "").replace(/'/g, "\\'")
+      const linksRelEsc = (v.links_relacionados || "").replace(/\n/g, "\\n").replace(/'/g, "\\'")
+      const plLinkEsc   = (v.playlist_link || "").replace(/'/g, "\\'")
+      const tagsStr     = Array.isArray(v.tags) ? v.tags.map(t => "#"+t).join(" ") : ""
+      const tagsPills   = Array.isArray(v.tags) && v.tags.length
+        ? v.tags.map(t => `<span class="tag-pill-admin">#${t}</span>`).join("") : ""
+      const capaHtml    = v.capa_url
+        ? `<img class="card-capa" src="${v.capa_url}" alt="Capa">`
+        : `<div class="card-sem-capa">🎬</div>`
+      return `
+        <div class="livro-admin-card">
+          ${capaHtml}
+          <div style="flex:1">
+            <strong>${v.titulo}</strong>
+            ${v.autor ? `<span> — ${v.autor}</span>` : ""}
+            ${v.link_externo ? `<span style="font-size:11px;color:#888;"> · 🔗 Link</span>` : ""}
+            <div style="margin-top:4px">${tagsPills}</div>
+          </div>
+          ${v.video_url ? `<a href="${v.video_url}" target="_blank">▶ Ver</a>` : ""}
+          <button onclick="abrirModalVideo(${v.id},'${tituloEsc}','${autorEsc}','${descEsc}','${tagsStr}','${capaEsc}','${linkEsc}','${linksRelEsc}','${plLinkEsc}')">✏️ Editar</button>
+          <button class="btn-del" onclick="deletarVideo(${v.id})">🗑 Remover</button>
+        </div>
+      `
+    }).join("")
+  } catch {
+    if (tentativa < 4) setTimeout(() => carregarVideosAdmin(tentativa + 1), tentativa * 3000)
+    else div.innerHTML = `<p>Erro ao carregar vídeos. <button onclick="carregarVideosAdmin()">🔄 Tentar</button></p>`
+  }
+}
+
+function abrirModalVideo(id, titulo, autor, desc, tags, capaUrl, link, linksRel, plLink) {
+  idVideoEditando = id
+  document.getElementById("edit-v-titulo").value        = titulo
+  document.getElementById("edit-v-autor").value         = autor
+  document.getElementById("edit-v-descricao").value     = desc
+  document.getElementById("edit-v-tags").value          = tags
+  document.getElementById("edit-v-link").value          = link
+  document.getElementById("edit-v-links-rel").value     = linksRel.replace(/\\n/g, "\n")
+  document.getElementById("edit-v-playlist-link").value = plLink
+  document.getElementById("edit-v-capa").value          = ""
+  document.getElementById("edit-v-capa-name").textContent = "Nenhuma capa selecionada"
+  document.getElementById("edit-v-capa-preview").classList.remove("visivel")
+
+  const capaAtual = document.getElementById("edit-v-capa-atual")
+  const capaImg   = document.getElementById("edit-v-capa-img")
+  if (capaUrl) { capaImg.src = capaUrl; capaAtual.style.display = "flex" }
+  else capaAtual.style.display = "none"
+
+  const m = tags.match(/#[\wÀ-ú]+/g) || []
+  document.getElementById("edit-v-tags-preview").innerHTML = m.map(t => `<span class="tag-pill">${t}</span>`).join("")
+  document.getElementById("edit-v-status").style.display = "none"
+  document.getElementById("modal-video-overlay").classList.add("aberto")
+}
+
+function fecharModalVideo(event) {
+  if (event && event.target !== document.getElementById("modal-video-overlay")) return
+  document.getElementById("modal-video-overlay").classList.remove("aberto")
+  idVideoEditando = null
+}
+
+async function salvarEdicaoVideo() {
+  if (!idVideoEditando) return
+  const titulo    = document.getElementById("edit-v-titulo").value.trim()
+  const autor     = document.getElementById("edit-v-autor").value.trim()
+  const descricao = document.getElementById("edit-v-descricao").value.trim()
+  const tags      = document.getElementById("edit-v-tags").value.trim()
+  const link      = document.getElementById("edit-v-link").value.trim()
+  const linksRel  = document.getElementById("edit-v-links-rel").value.trim()
+  const plLink    = document.getElementById("edit-v-playlist-link").value.trim()
+  const novaCapa  = document.getElementById("edit-v-capa").files[0]
+
+  if (!titulo) { mostrarVEditStatus("Título não pode ficar vazio.", "erro"); return }
+
+  const btn = document.querySelector("#modal-video-overlay .modal-btns button:last-child")
+  btn.disabled = true; btn.textContent = "Salvando..."
+
+  try {
+    let res
+    if (novaCapa) {
+      const formData = new FormData()
+      formData.append("titulo", titulo); formData.append("autor", autor)
+      formData.append("descricao", descricao); formData.append("tags", tags)
+      formData.append("link", link); formData.append("links_relacionados", linksRel)
+      formData.append("playlist_link", plLink); formData.append("capa", novaCapa)
+      res = await fetch(`${API}/videos/${idVideoEditando}`, {
+        method: "PATCH",
+        headers: { "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` },
+        body: formData
+      })
+    } else {
+      res = await fetch(`${API}/videos/${idVideoEditando}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` },
+        body: JSON.stringify({ titulo, autor, descricao, tags, link, links_relacionados: linksRel, playlist_link: plLink })
+      })
+    }
+    const data = await res.json()
+    if (data.status === "ok") {
+      document.getElementById("modal-video-overlay").classList.remove("aberto")
+      idVideoEditando = null; carregarVideosAdmin()
+    } else { mostrarVEditStatus("Erro: " + data.message, "erro") }
+  } catch { mostrarVEditStatus("Erro de conexão.", "erro") }
+  finally { btn.disabled = false; btn.textContent = "💾 Salvar" }
+}
+
+async function deletarVideo(id) {
+  if (!confirm("Remover este vídeo?")) return
+  try {
+    const res  = await fetch(`${API}/videos/${id}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${localStorage.getItem("sl_admin_token") || ""}` }
+    })
+    const data = await res.json()
+    if (data.status === "ok") carregarVideosAdmin()
+    else alert("Erro: " + data.message)
+  } catch { alert("Erro de conexão.") }
+}
+
+function mostrarVStatus(msg, tipo) {
+  const el = document.getElementById("v-status-msg")
+  el.textContent = msg; el.className = tipo; el.style.display = "block"
+}
+function mostrarVEditStatus(msg, tipo) {
+  const el = document.getElementById("edit-v-status")
+  el.textContent = msg; el.className = tipo; el.style.display = "block"
+}
+
+carregarVideosAdmin()
 </script>
 
 </body>
