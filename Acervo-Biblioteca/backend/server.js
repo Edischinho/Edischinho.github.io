@@ -43,7 +43,8 @@ if (!fs.existsSync("temp")) fs.mkdirSync("temp")
 
 function exigirAdmin(req, res, next) {
   if (!ADMIN_TOKEN) return next()
-  const token = (req.headers["authorization"] || "").replace("Bearer ", "")
+  const auth  = req.headers["authorization"] || ""
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : auth.trim()
   if (token !== ADMIN_TOKEN) return res.status(403).json({ status: "erro", message: "Acesso negado." })
   next()
 }
@@ -530,11 +531,18 @@ app.post("/addPlaylistBatch", exigirAdmin, upload.fields([
     // Criar playlist com todos os vídeos importados com sucesso
     let playlistId = null
     if (idsVideos.length) {
-      const { data: pl } = await supabase.from("playlists").insert([{
-        nome: playlist_nome, publica: publica === "true", videos: idsVideos,
-        user_id: "00000000-0000-0000-0000-000000000000"
+      const adminUserId = process.env.ADMIN_USER_ID || "00000000-0000-0000-0000-000000000001"
+      const { data: pl, error: plError } = await supabase.from("playlists").insert([{
+        nome:    playlist_nome,
+        publica: publica === "true",
+        videos:  idsVideos.map(Number),
+        user_id: adminUserId
       }]).select("id").single()
-      playlistId = pl?.id || null
+      if (plError) {
+        console.error("Erro ao criar playlist batch:", plError.message)
+      } else {
+        playlistId = pl?.id || null
+      }
     }
 
     res.json({ status: "ok", total: videoFiles.length, importados: idsVideos.length, playlistId, resultados })
@@ -648,13 +656,18 @@ app.post("/importPlaylistLink", exigirAdmin, async (req, res) => {
     }
 
     // Criar playlist no banco agrupando todos os vídeos
-    const { data: plCriada } = await supabase.from("playlists").insert([{
+    const adminUserId = process.env.ADMIN_USER_ID || "00000000-0000-0000-0000-000000000001"
+    const { data: plCriada, error: plError } = await supabase.from("playlists").insert([{
       nome:      nomeDaPlaylist,
       descricao: descDaPlaylist.slice(0, 1000),
       publica:   true,
-      videos:    idsInseridos,
-      user_id:   "00000000-0000-0000-0000-000000000000"
+      videos:    idsInseridos.map(Number),
+      user_id:   adminUserId
     }]).select("id, nome, descricao").single()
+
+    if (plError) {
+      console.error("Erro ao criar playlist YT:", plError.message)
+    }
 
     res.json({
       status:     "ok",
@@ -677,6 +690,31 @@ app.post("/importPlaylistLink", exigirAdmin, async (req, res) => {
   }
 })
 
+// Criar playlist pelo admin (sem JWT de usuário)
+app.post("/playlists_admin", exigirAdmin, async (req, res) => {
+  try {
+    const { nome, descricao = "", publica = true, videos = [] } = req.body
+    if (!nome) return res.status(400).json({ status: "erro", message: "Nome obrigatório." })
+
+    const adminUserId = process.env.ADMIN_USER_ID || "00000000-0000-0000-0000-000000000001"
+    const videosArray = (Array.isArray(videos) ? videos : []).map(Number).filter(n => !isNaN(n))
+
+    const { data, error } = await supabase.from("playlists").insert([{
+      nome:      String(nome).slice(0, 200),
+      descricao: String(descricao).slice(0, 1000),
+      publica:   !!publica,
+      videos:    videosArray,
+      user_id:   adminUserId
+    }]).select("id, nome, videos").single()
+
+    if (error) throw error
+    res.json({ status: "ok", id: data.id, nome: data.nome, videos: data.videos })
+  } catch (err) {
+    console.error("Erro criar playlist admin:", err)
+    res.status(500).json({ status: "erro", message: "Erro ao criar playlist: " + err.message })
+  }
+})
+
 // Editar playlist pelo admin (sem JWT de usuário)
 app.patch("/playlists_admin/:id", exigirAdmin, async (req, res) => {
   try {
@@ -686,15 +724,16 @@ app.patch("/playlists_admin/:id", exigirAdmin, async (req, res) => {
     if (nome      !== undefined) updates.nome      = String(nome).slice(0, 200)
     if (descricao !== undefined) updates.descricao = String(descricao).slice(0, 1000)
     if (publica   !== undefined) updates.publica   = !!publica
-    if (videos    !== undefined) updates.videos    = videos
+    if (videos    !== undefined) updates.videos    = (Array.isArray(videos) ? videos : []).map(Number)
 
     if (!Object.keys(updates).length)
       return res.status(400).json({ status: "erro", message: "Nada para atualizar." })
 
-    const { error } = await supabase.from("playlists").update(updates).eq("id", id)
+    const { error } = await supabase.from("playlists").update(updates).eq("id", Number(id))
     if (error) throw error
     res.json({ status: "ok" })
-  } catch {
+  } catch (err) {
+    console.error("Erro editar playlist admin:", err)
     res.status(500).json({ status: "erro", message: "Erro ao editar playlist." })
   }
 })
@@ -703,22 +742,28 @@ app.patch("/playlists_admin/:id", exigirAdmin, async (req, res) => {
 app.delete("/playlists_admin/:id", exigirAdmin, async (req, res) => {
   try {
     const { id } = req.params
-    const { error } = await supabase.from("playlists").delete().eq("id", id)
+    if (!/^\d+$/.test(id)) return res.status(400).json({ status: "erro", message: "ID inválido." })
+    const { error } = await supabase.from("playlists").delete().eq("id", Number(id))
     if (error) throw error
     res.json({ status: "ok" })
-  } catch {
-    res.status(500).json({ status: "erro", message: "Erro ao deletar playlist." })
+  } catch (err) {
+    console.error("Erro delete playlist admin:", err)
+    res.status(500).json({ status: "erro", message: "Erro ao deletar playlist: " + err.message })
   }
 })
 
-// Listar playlists públicas (admin)
-app.get("/playlists_admin", async (req, res) => {
+// Listar playlists do admin (todas criadas com user_id admin)
+app.get("/playlists_admin", exigirAdmin, async (req, res) => {
   try {
+    const adminUserId = process.env.ADMIN_USER_ID || "00000000-0000-0000-0000-000000000001"
     const { data, error } = await supabase.from("playlists")
-      .select("*").eq("publica", true).order("id", { ascending: false })
+      .select("*")
+      .or(`user_id.eq.${adminUserId},publica.eq.true`)
+      .order("id", { ascending: false })
     if (error) throw error
     res.json(data)
-  } catch {
+  } catch (err) {
+    console.error("Erro playlists_admin:", err)
     res.status(500).json({ status: "erro", message: "Erro ao buscar playlists admin." })
   }
 })
