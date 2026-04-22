@@ -972,6 +972,7 @@ async function addVideo() {
 
 let videosSelecionados = new Set()
 let lastClickedVideo   = null
+let videosCache = {} // mapa id -> objeto completo do vídeo
 
 async function carregarVideosAdmin(tentativa = 1) {
   const div = document.getElementById("videos-admin")
@@ -980,20 +981,16 @@ async function carregarVideosAdmin(tentativa = 1) {
   try {
     const res    = await fetch(`${API}/videos`)
     const videos = await res.json()
+    videosCache  = {}
     if (!videos.length) { div.innerHTML = "<p>Nenhum vídeo cadastrado ainda.</p>"; return }
     div.innerHTML = ""
     videos.forEach(v => {
-      const tituloEsc   = (v.titulo || "").replace(/'/g, "\\'")
-      const autorEsc    = (v.autor  || "").replace(/'/g, "\\'")
-      const descEsc     = (v.descricao || "").replace(/'/g, "\\'")
-      const capaEsc     = (v.capa_url || "").replace(/'/g, "\\'")
-      const linkEsc     = (v.link_externo || "").replace(/'/g, "\\'")
-      const linksRelEsc = (v.links_relacionados || "").replace(/\n/g, "\\n").replace(/'/g, "\\'")
-      const plLinkEsc   = (v.playlist_link || "").replace(/'/g, "\\'")
-      const tagsStr     = Array.isArray(v.tags) ? v.tags.map(t => "#"+t).join(" ") : ""
-      const tagsPills   = Array.isArray(v.tags) && v.tags.length
+      videosCache[v.id] = v  // salvar objeto completo no cache
+
+      const tagsStr   = Array.isArray(v.tags) ? v.tags.map(t => "#"+t).join(" ") : ""
+      const tagsPills = Array.isArray(v.tags) && v.tags.length
         ? v.tags.map(t => `<span class="tag-pill-admin">#${t}</span>`).join("") : ""
-      const capaHtml    = v.capa_url
+      const capaHtml  = v.capa_url
         ? `<img class="card-capa" src="${v.capa_url}" alt="Capa">`
         : `<div class="card-sem-capa">🎬</div>`
 
@@ -1010,10 +1007,9 @@ async function carregarVideosAdmin(tentativa = 1) {
           <div style="margin-top:4px">${tagsPills}</div>
         </div>
         ${v.video_url ? `<a href="${v.video_url}" target="_blank">▶ Ver</a>` : ""}
-        <button onclick="event.stopPropagation();abrirModalVideo(${v.id},'${tituloEsc}','${autorEsc}','${descEsc}','${tagsStr}','${capaEsc}','${linkEsc}','${linksRelEsc}','${plLinkEsc}')">✏️ Editar</button>
+        <button onclick="event.stopPropagation();abrirModalVideo(${v.id})">✏️ Editar</button>
         <button class="btn-del" onclick="event.stopPropagation();deletarVideo(${v.id})">🗑</button>
       `
-      // Clicar no card seleciona (com suporte a shift+click)
       card.addEventListener("click", e => {
         if (e.target.tagName === "BUTTON" || e.target.tagName === "A" || e.target.tagName === "INPUT") return
         toggleVideoSel(v.id, e)
@@ -1132,21 +1128,25 @@ function iniciarRubberBandAdmin(container) {
   })
 }
 
-function abrirModalVideo(id, titulo, autor, desc, tags, capaUrl, link, linksRel, plLink) {
+function abrirModalVideo(id) {
+  const v = videosCache[id]
+  if (!v) { alert("Vídeo não encontrado. Recarregue a página."); return }
+
   idVideoEditando = id
-  document.getElementById("edit-v-titulo").value        = titulo
-  document.getElementById("edit-v-autor").value         = autor
-  document.getElementById("edit-v-descricao").value     = desc
-  document.getElementById("edit-v-tags").value          = tags
-  document.getElementById("edit-v-link").value          = link
-  document.getElementById("edit-v-playlist-link").value = plLink
+  document.getElementById("edit-v-titulo").value        = v.titulo    || ""
+  document.getElementById("edit-v-autor").value         = v.autor     || ""
+  document.getElementById("edit-v-descricao").value     = v.descricao || ""
+  document.getElementById("edit-v-tags").value          = Array.isArray(v.tags) ? v.tags.map(t => "#"+t).join(" ") : ""
+  document.getElementById("edit-v-link").value          = v.link_externo  || ""
+  document.getElementById("edit-v-playlist-link").value = v.playlist_link || ""
   document.getElementById("edit-v-capa").value          = ""
   document.getElementById("edit-v-capa-name").textContent = "Nenhuma capa selecionada"
   document.getElementById("edit-v-capa-preview").classList.remove("visivel")
   document.getElementById("edit-v-livros-busca").value  = ""
   document.getElementById("edit-v-livros-lista").style.display = "none"
 
-  // Popular livros selecionados a partir dos IDs salvos
+  // Popular livros selecionados
+  const linksRel = v.links_relacionados || ""
   livrosSelecionadosEdit = linksRel
     ? linksRel.split(",").map(Number).filter(n => !isNaN(n) && n > 0)
     : []
@@ -1154,11 +1154,14 @@ function abrirModalVideo(id, titulo, autor, desc, tags, capaUrl, link, linksRel,
     renderLivrosSelecionados("edit-v-livros-sel", livrosSelecionadosEdit)
   })
 
+  // Capa atual
   const capaAtual = document.getElementById("edit-v-capa-atual")
   const capaImg   = document.getElementById("edit-v-capa-img")
-  if (capaUrl) { capaImg.src = capaUrl; capaAtual.style.display = "flex" }
+  if (v.capa_url) { capaImg.src = v.capa_url; capaAtual.style.display = "flex" }
   else capaAtual.style.display = "none"
 
+  // Preview de tags
+  const tags = Array.isArray(v.tags) ? v.tags.map(t => "#"+t).join(" ") : ""
   const m = tags.match(/#[\wÀ-ú]+/g) || []
   document.getElementById("edit-v-tags-preview").innerHTML = m.map(t => `<span class="tag-pill">${t}</span>`).join("")
   document.getElementById("edit-v-status").style.display = "none"
