@@ -197,6 +197,72 @@
       .periodo-label { min-width: 120px; font-size: 13px; }
       .nav-btn { padding: 5px 8px; font-size: 12px; }
     }
+
+    /* ── Painel de Urgências ── */
+    .btn-urgencias {
+      background: var(--surface2); color: var(--text); border: none;
+      border-radius: var(--radius); padding: 6px 10px; font-size: 16px;
+      cursor: pointer; transition: background 0.15s; line-height: 1;
+    }
+    .btn-urgencias:hover { background: #333; }
+
+    .painel-urgencias {
+      display: none; position: fixed;
+      top: 54px; right: 12px;
+      width: 340px; max-width: calc(100vw - 24px);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      z-index: 200; overflow: hidden;
+    }
+    .painel-urgencias.aberto { display: block; }
+
+    .painel-urg-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; background: var(--surface2);
+      border-bottom: 1px solid var(--border); font-size: 14px; font-weight: bold;
+    }
+    .painel-urg-fechar {
+      background: none; border: none; color: var(--muted);
+      font-size: 18px; cursor: pointer; padding: 0; line-height: 1;
+    }
+    .painel-urg-fechar:hover { color: var(--text); }
+
+    .painel-urg-body { max-height: 420px; overflow-y: auto; }
+
+    .urg-grupo { padding: 8px 0; }
+    .urg-grupo-titulo {
+      font-size: 11px; font-weight: bold; text-transform: uppercase;
+      letter-spacing: 1px; padding: 6px 16px 4px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .urg-grupo-titulo .urg-badge {
+      font-size: 11px; border-radius: 10px; padding: 1px 7px; font-weight: bold;
+    }
+    .urg-item {
+      padding: 8px 16px; border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: background 0.1s;
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    .urg-item:hover { background: rgba(255,255,255,0.04); }
+    .urg-item:last-child { border-bottom: none; }
+    .urg-cor-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 4px;
+    }
+    .urg-info { flex: 1; min-width: 0; }
+    .urg-titulo { font-size: 13px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .urg-data   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .urg-dias   { font-size: 12px; font-weight: bold; flex-shrink: 0; }
+
+    .urg-vazio { padding: 16px; text-align: center; font-size: 13px; color: var(--muted); }
+
+    /* Cores por urgência */
+    .urg-urgente  { color: #ef4444; }
+    .urg-passivel { color: #eab308; }
+    .urg-tranquilo{ color: #22c55e; }
+    .badge-urgente   { background: rgba(239,68,68,0.15);   color: #ef4444; }
+    .badge-passivel  { background: rgba(234,179,8,0.15);   color: #eab308; }
+    .badge-tranquilo { background: rgba(34,197,94,0.15);   color: #22c55e; }
   </style>
 </head>
 <body>
@@ -218,6 +284,16 @@
   </div>
 
   <button class="btn-prim" onclick="abrirModal(null)" style="white-space:nowrap;">+ Evento</button>
+  <button class="btn-urgencias" onclick="togglePainelUrgencias()" title="Programações urgentes">☰</button>
+</div>
+
+<!-- Painel de Urgências -->
+<div class="painel-urgencias" id="painel-urgencias">
+  <div class="painel-urg-header">
+    ⏰ Próximas programações
+    <button class="painel-urg-fechar" onclick="togglePainelUrgencias()">✕</button>
+  </div>
+  <div class="painel-urg-body" id="painel-urg-body"></div>
 </div>
 
 <div class="cal-body" id="cal-body"></div>
@@ -725,6 +801,84 @@ function horaFim(horaIni) {
 
 // Fechar modal com Escape
 document.addEventListener("keydown", e => { if (e.key === "Escape") fecharModal() })
+
+// ─── PAINEL DE URGÊNCIAS ─────────────────────────────────
+function togglePainelUrgencias() {
+  const painel = document.getElementById("painel-urgencias")
+  const aberto = painel.classList.toggle("aberto")
+  if (aberto) renderPainelUrgencias()
+}
+
+function renderPainelUrgencias() {
+  const body  = document.getElementById("painel-urg-body")
+  const agora = new Date()
+  agora.setHours(0, 0, 0, 0)
+
+  // Filtrar eventos nos próximos 9 dias
+  const proximos = eventos
+    .map(ev => {
+      const ini  = ev.inicio instanceof Date ? ev.inicio : new Date(ev.inicio)
+      const diff = Math.floor((ini - agora) / (1000 * 60 * 60 * 24))
+      return { ...ev, diff }
+    })
+    .filter(ev => ev.diff >= 0 && ev.diff <= 9)
+    .sort((a, b) => a.diff - b.diff)
+
+  const urgentes   = proximos.filter(e => e.diff <= 3)
+  const passiveis  = proximos.filter(e => e.diff >= 4 && e.diff <= 6)
+  const tranquilos = proximos.filter(e => e.diff >= 7 && e.diff <= 9)
+
+  if (!proximos.length) {
+    body.innerHTML = '<div class="urg-vazio">✅ Nenhuma programação nos próximos 9 dias.</div>'
+    return
+  }
+
+  const renderGrupo = (titulo, cls, badgeCls, lista, labelDias) => {
+    if (!lista.length) return ""
+    const itens = lista.map(ev => {
+      const ini   = ev.inicio instanceof Date ? ev.inicio : new Date(ev.inicio)
+      const label = ev.diff === 0 ? "Hoje" : ev.diff === 1 ? "Amanhã" : `${ev.diff} dias`
+      const data  = ini.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" })
+      const hora  = ini.getHours() !== 0
+        ? ` · ${String(ini.getHours()).padStart(2,"0")}:${String(ini.getMinutes()).padStart(2,"0")}`
+        : ""
+      return `
+        <div class="urg-item" onclick="togglePainelUrgencias();cursor=new Date(${ini.getTime()});setVista('dia')">
+          <div class="urg-cor-dot" style="background:${ev.cor || '#ffd700'}"></div>
+          <div class="urg-info">
+            <div class="urg-titulo">${ev.titulo}</div>
+            <div class="urg-data">${data}${hora}</div>
+          </div>
+          <div class="urg-dias ${cls}">${label}</div>
+        </div>
+      `
+    }).join("")
+
+    return `
+      <div class="urg-grupo">
+        <div class="urg-grupo-titulo ${cls}">
+          ${titulo}
+          <span class="urg-badge ${badgeCls}">${lista.length}</span>
+        </div>
+        ${itens}
+      </div>
+    `
+  }
+
+  body.innerHTML =
+    renderGrupo("🔴 Urgente (0–3 dias)",    "urg-urgente",   "badge-urgente",   urgentes,   "urgente")  +
+    renderGrupo("🟡 Passível (4–6 dias)",   "urg-passivel",  "badge-passivel",  passiveis,  "passivel") +
+    renderGrupo("🟢 Tranquilo (7–9 dias)",  "urg-tranquilo", "badge-tranquilo", tranquilos, "tranquilo")
+}
+
+// Fechar painel ao clicar fora
+document.addEventListener("click", e => {
+  const painel = document.getElementById("painel-urgencias")
+  if (!painel.classList.contains("aberto")) return
+  if (painel.contains(e.target)) return
+  if (e.target.classList.contains("btn-urgencias")) return
+  painel.classList.remove("aberto")
+})
 
 // ── Start ──
 init()
