@@ -317,7 +317,111 @@
       background: rgba(255,215,0,0.08); pointer-events: none;
       z-index: 9999; display: none;
     }
-    .vazio { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
+    /* ── Botão de fila na thumbnail ── */
+    .btn-add-fila {
+      position: absolute; bottom: 8px; right: 8px;
+      background: rgba(0,0,0,0.75); color: #fff;
+      border: none; border-radius: 6px;
+      padding: 4px 8px; font-size: 11px;
+      cursor: pointer; opacity: 0;
+      transition: opacity 0.2s, background 0.15s;
+      display: flex; align-items: center; gap: 4px;
+      z-index: 5; white-space: nowrap;
+    }
+    .video-card:hover .btn-add-fila { opacity: 1; }
+    .btn-add-fila:hover { background: var(--accent); color: #111; }
+    .btn-add-fila.na-fila { background: var(--accent); color: #111; opacity: 1; }
+
+    /* ── Layout do player com painel lateral ── */
+    .modal-player-layout {
+      display: flex; flex-direction: row;
+      width: 100%; max-width: 1200px;
+      background: var(--surface); border-radius: 14px;
+      overflow: hidden; margin: auto;
+      box-shadow: 0 16px 64px rgba(0,0,0,0.8);
+      max-height: 90vh;
+    }
+    .modal-player-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
+
+    /* ── Painel da fila ── */
+    .fila-painel {
+      width: 300px; flex-shrink: 0;
+      background: var(--surface2); border-left: 1px solid var(--border);
+      display: flex; flex-direction: column; transition: width 0.25s;
+    }
+    .fila-painel.fechado { width: 0; overflow: hidden; border: none; }
+    .fila-header {
+      padding: 12px 14px; border-bottom: 1px solid var(--border);
+      font-size: 13px; font-weight: bold;
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .fila-count { font-size: 11px; color: var(--muted); font-weight: normal; }
+    .fila-lista { flex: 1; overflow-y: auto; }
+    .fila-item {
+      display: flex; gap: 8px; align-items: center;
+      padding: 8px 10px; cursor: pointer;
+      transition: background 0.1s; border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .fila-item:hover { background: rgba(255,255,255,0.04); }
+    .fila-item.tocando { background: rgba(255,215,0,0.08); border-left: 3px solid var(--accent); }
+    .fila-thumb {
+      width: 68px; height: 42px; object-fit: cover;
+      border-radius: 4px; flex-shrink: 0; background: #111;
+    }
+    .fila-thumb-ph {
+      width: 68px; height: 42px; border-radius: 4px;
+      background: #222; display: flex; align-items: center;
+      justify-content: center; font-size: 16px; flex-shrink: 0;
+    }
+    .fila-info { flex: 1; min-width: 0; }
+    .fila-titulo { font-size: 12px; font-weight: bold; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .fila-autor  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .fila-remover {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 14px; opacity: 0; flex-shrink: 0; padding: 2px 4px;
+    }
+    .fila-item:hover .fila-remover { opacity: 1; }
+    .fila-remover:hover { color: #f88; }
+    .fila-vazia { padding: 24px 12px; text-align: center; font-size: 12px; color: var(--muted); }
+    .fila-acoes {
+      padding: 8px 10px; border-top: 1px solid var(--border);
+      display: flex; gap: 6px; flex-shrink: 0;
+    }
+    .btn-fila-acao {
+      flex: 1; padding: 6px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-size: 11px; cursor: pointer; transition: background 0.1s;
+    }
+    .btn-fila-acao:hover { background: #333; }
+    .btn-fila-acao.ativo { background: var(--accent); color: #111; border-color: var(--accent); }
+
+    /* ── Controles do player ── */
+    .player-controles {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 14px; background: var(--surface2);
+      border-top: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
+    }
+    .btn-player {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 5px 10px;
+      font-size: 12px; cursor: pointer; transition: background 0.1s;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .btn-player:hover { background: #333; }
+    .btn-player.ativo { background: var(--accent); color: #111; border-color: var(--accent); }
+    .player-titulo-atual {
+      flex: 1; font-size: 11px; color: var(--muted);
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    }
+
+    @media (max-width: 768px) {
+      .modal-player-layout { flex-direction: column; max-height: none; border-radius: 0; }
+      .fila-painel { width: 100% !important; border-left: none; border-top: 1px solid var(--border); max-height: 260px; }
+      .fila-painel.fechado { max-height: 0; overflow: hidden; border: none; }
+    }
+
+    /* ── Vazio ── */
     .vazio span { font-size: 48px; display: block; margin-bottom: 12px; }
 
     /* ── Responsivo ── */
@@ -377,23 +481,52 @@
 
 <!-- Modal player -->
 <div class="modal-overlay" id="modal-player" onclick="fecharPlayerOverlay(event)">
-  <div class="modal-player" id="modal-player-inner">
-    <div class="modal-video-wrap" id="modal-video-wrap">
-      <button class="modal-fechar" onclick="fecharPlayer()">✕</button>
-    </div>
-    <div class="modal-info">
-      <div class="modal-titulo" id="modal-titulo"></div>
-      <div class="modal-autor"  id="modal-autor"></div>
-      <button class="btn-add-playlist" onclick="abrirModalAddPlaylist()" id="btn-add-pl" style="display:none">
-        ➕ Adicionar à playlist
-      </button>
-      <div class="modal-desc"   id="modal-desc"></div>
-      <div class="modal-tags"   id="modal-tags"></div>
-      <div class="modal-relacionados" id="modal-relacionados" style="display:none">
-        <div class="modal-rel-titulo">📚 Arquivos relacionados</div>
-        <div id="modal-rel-links"></div>
+  <div class="modal-player-layout" id="modal-player-inner">
+
+    <!-- Coluna principal: vídeo + info -->
+    <div class="modal-player-main">
+      <div class="modal-video-wrap" id="modal-video-wrap" style="position:relative;aspect-ratio:16/9;background:#000;">
+        <button class="modal-fechar" onclick="fecharPlayer()">✕</button>
+      </div>
+
+      <!-- Controles do player -->
+      <div class="player-controles">
+        <button class="btn-player" id="btn-anterior" onclick="tocarAnterior()" title="Anterior">⏮</button>
+        <button class="btn-player" id="btn-proximo"  onclick="tocarProximo()"  title="Próximo">⏭</button>
+        <span class="player-titulo-atual" id="player-titulo-atual"></span>
+        <button class="btn-player" id="btn-autoplay" onclick="toggleAutoplay()" title="Autoplay">🔁 Auto</button>
+        <button class="btn-player" id="btn-pip"      onclick="ativarPiP()"     title="Picture in Picture">⧉ PiP</button>
+        <button class="btn-player" id="btn-toggle-fila" onclick="toggleFilaPanel()" title="Fila">☰ Fila</button>
+      </div>
+
+      <div class="modal-info">
+        <div class="modal-titulo" id="modal-titulo"></div>
+        <div class="modal-autor"  id="modal-autor"></div>
+        <button class="btn-add-playlist" onclick="abrirModalAddPlaylist()" id="btn-add-pl" style="display:none;margin-bottom:12px;">
+          ➕ Adicionar à playlist
+        </button>
+        <div class="modal-desc"   id="modal-desc"></div>
+        <div class="modal-tags"   id="modal-tags"></div>
+        <div class="modal-relacionados" id="modal-relacionados" style="display:none">
+          <div class="modal-rel-titulo">📚 Arquivos relacionados</div>
+          <div id="modal-rel-links"></div>
+        </div>
       </div>
     </div>
+
+    <!-- Painel da fila -->
+    <div class="fila-painel fechado" id="fila-painel">
+      <div class="fila-header">
+        <span>🎵 Fila de reprodução <span class="fila-count" id="fila-count"></span></span>
+        <button class="btn-player" onclick="limparFila()" title="Limpar fila" style="font-size:11px;padding:3px 8px;">🗑 Limpar</button>
+      </div>
+      <div class="fila-lista" id="fila-lista"></div>
+      <div class="fila-acoes">
+        <button class="btn-fila-acao" id="btn-embaralhar" onclick="embaralharFila()">🔀 Embaralhar</button>
+        <button class="btn-fila-acao ativo" id="btn-repetir" onclick="toggleRepetir()">🔁 Repetir</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -551,6 +684,10 @@ function criarCardVideo(v) {
       ${thumbHtml}
       <div class="video-play-icon"><span>▶</span></div>
       ${tagBadge}
+      <button class="btn-add-fila" id="fila-btn-${v.id}"
+        onclick="event.stopPropagation();toggleFila(${v.id})">
+        ➕ Fila
+      </button>
     </div>
     <div class="video-info">
       <div class="video-titulo">${v.titulo}</div>
@@ -563,12 +700,163 @@ function criarCardVideo(v) {
   return card
 }
 
+// ── Estado da fila ──
+let fila           = []   // array de objetos video
+let filaIndex      = -1   // índice do vídeo tocando na fila
+let autoplayAtivo  = true
+let repetirAtivo   = false
+let filaPanelAberto = false
+
+// ── Fila: adicionar/remover ──
+function toggleFila(id) {
+  const v = videos.find(vv => vv.id === id)
+  if (!v) return
+  const idx = fila.findIndex(f => f.id === id)
+  if (idx === -1) {
+    fila.push(v)
+    atualizarBotoesFila()
+    renderFilaLista()
+    // Se o player estiver aberto, abre o painel
+    if (document.getElementById("modal-player").classList.contains("aberto")) {
+      abrirFilaPanel()
+    }
+  } else {
+    fila.splice(idx, 1)
+    if (filaIndex >= idx) filaIndex = Math.max(-1, filaIndex - 1)
+    atualizarBotoesFila()
+    renderFilaLista()
+  }
+}
+
+function atualizarBotoesFila() {
+  videos.forEach(v => {
+    const btn = document.getElementById(`fila-btn-${v.id}`)
+    if (!btn) return
+    const naFila = fila.some(f => f.id === v.id)
+    btn.classList.toggle("na-fila", naFila)
+    btn.textContent = naFila ? "✓ Na fila" : "➕ Fila"
+  })
+  const count = fila.length
+  const countEl = document.getElementById("fila-count")
+  if (countEl) countEl.textContent = count ? `(${count})` : ""
+}
+
+function renderFilaLista() {
+  const lista = document.getElementById("fila-lista")
+  if (!lista) return
+  if (!fila.length) {
+    lista.innerHTML = '<div class="fila-vazia">Fila vazia.<br>Passe o mouse sobre um vídeo<br>e clique em ➕ Fila.</div>'
+    return
+  }
+  lista.innerHTML = ""
+  fila.forEach((v, i) => {
+    const thumb = getThumbnail(v)
+    const thumbHtml = thumb.type === "img"
+      ? `<img class="fila-thumb" src="${thumb.src}" onerror="this.style.display='none'">`
+      : `<div class="fila-thumb-ph">🎬</div>`
+
+    const item = document.createElement("div")
+    item.className = "fila-item" + (i === filaIndex ? " tocando" : "")
+    item.innerHTML = `
+      ${thumbHtml}
+      <div class="fila-info">
+        <div class="fila-titulo">${v.titulo}</div>
+        ${v.autor ? `<div class="fila-autor">${v.autor}</div>` : ""}
+      </div>
+      <button class="fila-remover" onclick="event.stopPropagation();removerDaFila(${v.id})" title="Remover">✕</button>
+    `
+    item.onclick = () => tocarDaFila(i)
+    lista.appendChild(item)
+  })
+  // Scroll para o item tocando
+  const tocando = lista.querySelector(".tocando")
+  if (tocando) tocando.scrollIntoView({ block: "nearest" })
+}
+
+function removerDaFila(id) {
+  const idx = fila.findIndex(f => f.id === id)
+  if (idx === -1) return
+  fila.splice(idx, 1)
+  if (filaIndex >= idx) filaIndex = Math.max(-1, filaIndex - 1)
+  atualizarBotoesFila()
+  renderFilaLista()
+}
+
+function limparFila() {
+  fila = []; filaIndex = -1
+  atualizarBotoesFila()
+  renderFilaLista()
+}
+
+function embaralharFila() {
+  const tocando = filaIndex >= 0 ? fila[filaIndex] : null
+  for (let i = fila.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [fila[i], fila[j]] = [fila[j], fila[i]]
+  }
+  if (tocando) filaIndex = fila.findIndex(f => f.id === tocando.id)
+  renderFilaLista()
+}
+
+function toggleRepetir() {
+  repetirAtivo = !repetirAtivo
+  const btn = document.getElementById("btn-repetir")
+  if (btn) btn.classList.toggle("ativo", repetirAtivo)
+}
+
+function toggleAutoplay() {
+  autoplayAtivo = !autoplayAtivo
+  const btn = document.getElementById("btn-autoplay")
+  if (btn) btn.classList.toggle("ativo", autoplayAtivo)
+}
+
+// ── Painel da fila ──
+function toggleFilaPanel() {
+  filaPanelAberto = !filaPanelAberto
+  const painel = document.getElementById("fila-painel")
+  painel.classList.toggle("fechado", !filaPanelAberto)
+  renderFilaLista()
+}
+
+function abrirFilaPanel() {
+  filaPanelAberto = true
+  const painel = document.getElementById("fila-painel")
+  if (painel) { painel.classList.remove("fechado"); renderFilaLista() }
+}
+
+// ── Tocar da fila ──
+function tocarDaFila(idx) {
+  if (idx < 0 || idx >= fila.length) return
+  filaIndex = idx
+  abrirPlayer(fila[idx])
+}
+
+function tocarProximo() {
+  if (!fila.length) return
+  if (repetirAtivo && filaIndex >= 0) { tocarDaFila(filaIndex); return }
+  const proximo = filaIndex + 1
+  if (proximo < fila.length) tocarDaFila(proximo)
+  else if (repetirAtivo) tocarDaFila(0)
+}
+
+function tocarAnterior() {
+  if (!fila.length) return
+  const anterior = filaIndex - 1
+  if (anterior >= 0) tocarDaFila(anterior)
+}
+
 // ── Player ──
 function abrirPlayer(v) {
   videoAtual = v
+
+  // Atualizar filaIndex se o vídeo está na fila
+  const idxNaFila = fila.findIndex(f => f.id === v.id)
+  if (idxNaFila !== -1) filaIndex = idxNaFila
+
   document.getElementById("modal-titulo").textContent = v.titulo
   document.getElementById("modal-autor").textContent  = v.autor || ""
   document.getElementById("modal-desc").textContent   = v.descricao || ""
+  document.getElementById("player-titulo-atual").textContent = v.titulo
 
   // Tags
   const tagsEl = document.getElementById("modal-tags")
@@ -576,51 +864,25 @@ function abrirPlayer(v) {
     ? v.tags.map(t => `<span class="modal-tag" onclick="filtrarTag('${t}');fecharPlayer()">#${t}</span>`).join("")
     : ""
 
-  // Botão add playlist
   document.getElementById("btn-add-pl").style.display = logado ? "inline-flex" : "none"
 
-  // Player
-  const wrap = document.getElementById("modal-video-wrap")
-  // Limpar player anterior
-  const oldPlayer = wrap.querySelector("video, iframe")
-  if (oldPlayer) oldPlayer.remove()
+  // Atualizar estado dos botões de controle
+  const btnAutoplay = document.getElementById("btn-autoplay")
+  if (btnAutoplay) btnAutoplay.classList.toggle("ativo", autoplayAtivo)
+  const btnRepetir = document.getElementById("btn-repetir")
+  if (btnRepetir) btnRepetir.classList.toggle("ativo", repetirAtivo)
 
-  if (v.link_externo) {
-    // Detectar YouTube
-    const ytMatch = v.link_externo.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)
-    if (ytMatch) {
-      const iframe = document.createElement("iframe")
-      iframe.src = `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1`
-      iframe.allow = "autoplay; fullscreen"
-      iframe.allowFullscreen = true
-      wrap.appendChild(iframe)
-    } else {
-      // Link genérico
-      const a = document.createElement("a")
-      a.href = v.link_externo
-      a.target = "_blank"
-      a.style.cssText = "display:flex;align-items:center;justify-content:center;height:100%;color:#ffd700;font-size:16px;text-decoration:none;"
-      a.textContent = "▶ Abrir vídeo externo"
-      wrap.appendChild(a)
-    }
-  } else if (v.video_url) {
-    const video = document.createElement("video")
-    video.src      = v.video_url
-    video.controls = true
-    video.autoplay = true
-    wrap.appendChild(video)
-  }
+  // Montar player
+  montarPlayer(v)
 
-  // Relacionados — livros da livraria
+  // Relacionados
   const relWrap  = document.getElementById("modal-relacionados")
   const relLinks = document.getElementById("modal-rel-links")
   relLinks.innerHTML = ""
   relWrap.style.display = "none"
-
   if (v.links_relacionados) {
     const ids = v.links_relacionados.split(",").map(Number).filter(n => !isNaN(n) && n > 0)
     if (ids.length) {
-      // Buscar livros correspondentes
       fetch(`${API}/livros`).then(r => r.json()).then(todosLivros => {
         const livrosRel = todosLivros.filter(l => ids.includes(l.id))
         if (!livrosRel.length) return
@@ -630,29 +892,116 @@ function abrirPlayer(v) {
           const capaHtml = l.capa_url
             ? `<img src="${l.capa_url}" style="width:36px;height:50px;object-fit:cover;border-radius:4px;flex-shrink:0;">`
             : `<span style="font-size:24px;">📄</span>`
-          return `
-            <a class="modal-rel-link" href="${href}" target="_blank" style="align-items:center;">
-              ${capaHtml}
-              <div>
-                <div style="font-weight:bold;font-size:13px;">${l.titulo}</div>
-                ${l.autor ? `<div style="font-size:11px;color:#aaa;">${l.autor}</div>` : ""}
-              </div>
-            </a>
-          `
+          return `<a class="modal-rel-link" href="${href}" target="_blank" style="align-items:center;">
+            ${capaHtml}
+            <div>
+              <div style="font-weight:bold;font-size:13px;">${l.titulo}</div>
+              ${l.autor ? `<div style="font-size:11px;color:#aaa;">${l.autor}</div>` : ""}
+            </div>
+          </a>`
         }).join("")
         relWrap.style.display = "block"
       }).catch(() => {})
     }
   }
 
+  // Renderizar fila
+  renderFilaLista()
+  atualizarBotoesFila()
+
+  // Abrir modal
   document.getElementById("modal-player").classList.add("aberto")
   document.body.style.overflow = "hidden"
+
+  // Media Session API (controles de SO/fone)
+  atualizarMediaSession(v)
+}
+
+function montarPlayer(v) {
+  const wrap = document.getElementById("modal-video-wrap")
+  const oldPlayer = wrap.querySelector("video, iframe, a")
+  if (oldPlayer) oldPlayer.remove()
+
+  if (v.link_externo) {
+    const ytMatch = v.link_externo.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)
+    if (ytMatch) {
+      const iframe = document.createElement("iframe")
+      iframe.src = `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1`
+      iframe.allow = "autoplay; fullscreen; picture-in-picture"
+      iframe.allowFullscreen = true
+      iframe.id = "player-iframe"
+      wrap.appendChild(iframe)
+      // YouTube não dispara ended diretamente — usar postMessage
+      window._ytPlayerReady = false
+    } else {
+      const a = document.createElement("a")
+      a.href = v.link_externo; a.target = "_blank"
+      a.style.cssText = "display:flex;align-items:center;justify-content:center;height:100%;color:#ffd700;font-size:16px;text-decoration:none;"
+      a.textContent = "▶ Abrir vídeo externo"
+      wrap.appendChild(a)
+    }
+  } else if (v.video_url) {
+    const video = document.createElement("video")
+    video.src      = v.video_url
+    video.controls = true
+    video.autoplay = true
+    video.id       = "player-video"
+    // Autoplay próximo ao terminar
+    video.addEventListener("ended", () => {
+      if (autoplayAtivo) tocarProximo()
+    })
+    // Picture-in-Picture: sair do PiP não para o vídeo
+    video.addEventListener("leavepictureinpicture", () => {})
+    wrap.appendChild(video)
+  }
+
+  // Ocultar botão PiP se não for vídeo local
+  const btnPip = document.getElementById("btn-pip")
+  if (btnPip) btnPip.style.display = v.video_url ? "flex" : "none"
+}
+
+// ── PiP (Picture in Picture) ──
+async function ativarPiP() {
+  const video = document.getElementById("player-video")
+  if (!video) { alert("PiP só funciona para vídeos hospedados no site."); return }
+  try {
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture()
+    } else {
+      await video.requestPictureInPicture()
+    }
+  } catch (e) {
+    alert("Seu navegador não suporta Picture in Picture.")
+  }
+}
+
+// ── Media Session API (controles no SO) ──
+function atualizarMediaSession(v) {
+  if (!("mediaSession" in navigator)) return
+  const thumb = getThumbnail(v)
+  const artwork = thumb.type === "img" ? [{ src: thumb.src, sizes: "512x512" }] : []
+
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title:  v.titulo  || "Vídeo",
+    artist: v.autor   || "Omnisentis",
+    album:  "Omnisentis",
+    artwork
+  })
+
+  navigator.mediaSession.setActionHandler("previoustrack", () => tocarAnterior())
+  navigator.mediaSession.setActionHandler("nexttrack",     () => tocarProximo())
 }
 
 function fecharPlayer() {
   const wrap = document.getElementById("modal-video-wrap")
   const player = wrap.querySelector("video, iframe, a")
-  if (player) player.remove()
+  if (player) {
+    // Sair do PiP se necessário
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {})
+    }
+    player.remove()
+  }
   document.getElementById("modal-player").classList.remove("aberto")
   document.body.style.overflow = ""
   videoAtual = null
@@ -1113,6 +1462,24 @@ window.sair = async function() {
 }
 
 document.addEventListener("keydown", e => { if (e.key === "Escape") { fecharPlayer(); fecharModalPL(); fecharModalAddPL() } })
+
+// ── Segundo plano: manter vídeo tocando ao trocar de aba ──
+document.addEventListener("visibilitychange", () => {
+  const video = document.getElementById("player-video")
+  if (video && document.hidden) {
+    video.play().catch(() => {})
+  }
+})
+
+// ── YouTube: detectar fim do vídeo via postMessage para autoplay ──
+window.addEventListener("message", e => {
+  try {
+    const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data
+    if (data?.event === "onStateChange" && data?.info === 0) {
+      if (autoplayAtivo) setTimeout(() => tocarProximo(), 1500)
+    }
+  } catch {}
+})
 
 init()
 </script>
