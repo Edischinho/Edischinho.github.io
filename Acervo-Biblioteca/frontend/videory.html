@@ -317,7 +317,54 @@
       background: rgba(255,215,0,0.08); pointer-events: none;
       z-index: 9999; display: none;
     }
-    /* ── Botão de fila na thumbnail ── */
+    /* ── Mini-player flutuante ── */
+    .mini-player {
+      display: none;
+      position: fixed; bottom: 20px; right: 20px;
+      width: 300px; z-index: 300;
+      background: var(--surface); border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+      overflow: hidden; cursor: move;
+      border: 1px solid var(--border);
+      transition: box-shadow 0.15s;
+      user-select: none;
+    }
+    .mini-player.visivel { display: block; }
+    .mini-player:hover { box-shadow: 0 12px 40px rgba(0,0,0,0.9); }
+    .mini-player-video {
+      position: relative; aspect-ratio: 16/9; background: #000;
+      pointer-events: none; /* permite arrastar sem interferir no vídeo */
+    }
+    .mini-player-video.interativo { pointer-events: auto; }
+    .mini-player-video video,
+    .mini-player-video iframe {
+      width: 100%; height: 100%; border: none; display: block;
+    }
+    .mini-player-bar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 10px; background: var(--surface2);
+      pointer-events: auto;
+    }
+    .mini-titulo {
+      flex: 1; font-size: 11px; font-weight: bold;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+      color: var(--text); pointer-events: none;
+    }
+    .mini-btn {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 15px; padding: 2px 5px;
+      border-radius: 4px; transition: color 0.1s, background 0.1s;
+      line-height: 1;
+    }
+    .mini-btn:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+    .mini-resize-handle {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 4px;
+      cursor: ns-resize; z-index: 5;
+    }
+
+    @media (max-width: 480px) {
+      .mini-player { width: 240px; bottom: 12px; right: 12px; }
+    }
     .btn-add-fila {
       position: absolute; bottom: 8px; right: 8px;
       background: rgba(0,0,0,0.75); color: #fff;
@@ -479,6 +526,17 @@
   </div>
 </div>
 
+<!-- Mini-player flutuante -->
+<div class="mini-player" id="mini-player">
+  <div class="mini-player-video" id="mini-video-wrap"></div>
+  <div class="mini-player-bar">
+    <span class="mini-titulo" id="mini-titulo">—</span>
+    <button class="mini-btn" onclick="expandirPlayer()" title="Expandir">⤢</button>
+    <button class="mini-btn" onclick="toggleMiniAudio()" id="mini-mute-btn" title="Mudo">🔊</button>
+    <button class="mini-btn" onclick="fecharMiniPlayer()" title="Fechar">✕</button>
+  </div>
+</div>
+
 <!-- Modal player -->
 <div class="modal-overlay" id="modal-player" onclick="fecharPlayerOverlay(event)">
   <div class="modal-player-layout" id="modal-player-inner">
@@ -494,8 +552,9 @@
         <button class="btn-player" id="btn-anterior" onclick="tocarAnterior()" title="Anterior">⏮</button>
         <button class="btn-player" id="btn-proximo"  onclick="tocarProximo()"  title="Próximo">⏭</button>
         <span class="player-titulo-atual" id="player-titulo-atual"></span>
-        <button class="btn-player" id="btn-autoplay" onclick="toggleAutoplay()" title="Autoplay">🔁 Auto</button>
-        <button class="btn-player" id="btn-pip"      onclick="ativarPiP()"     title="Picture in Picture">⧉ PiP</button>
+        <button class="btn-player" id="btn-autoplay"   onclick="toggleAutoplay()"   title="Autoplay">🔁 Auto</button>
+        <button class="btn-player" id="btn-minimizar"  onclick="minimizarPlayer()"  title="Minimizar">⊟ Mini</button>
+        <button class="btn-player" id="btn-pip"        onclick="ativarPiP()"        title="Picture in Picture">⧉ PiP</button>
         <button class="btn-player" id="btn-toggle-fila" onclick="toggleFilaPanel()" title="Fila">☰ Fila</button>
       </div>
 
@@ -942,16 +1001,15 @@ function montarPlayer(v) {
     }
   } else if (v.video_url) {
     const video = document.createElement("video")
-    video.src      = v.video_url
-    video.controls = true
-    video.autoplay = true
-    video.id       = "player-video"
-    // Autoplay próximo ao terminar
+    video.src         = v.video_url
+    video.controls    = true
+    video.autoplay    = true
+    video.id          = "player-video"
+    video.setAttribute("playsinline", "")        // iOS: não forçar fullscreen
+    video.setAttribute("webkit-playsinline", "") // iOS Safari legado
     video.addEventListener("ended", () => {
       if (autoplayAtivo) tocarProximo()
     })
-    // Picture-in-Picture: sair do PiP não para o vídeo
-    video.addEventListener("leavepictureinpicture", () => {})
     wrap.appendChild(video)
   }
 
@@ -960,7 +1018,167 @@ function montarPlayer(v) {
   if (btnPip) btnPip.style.display = v.video_url ? "flex" : "none"
 }
 
-// ── PiP (Picture in Picture) ──
+// ── Mini-player: minimizar ──
+let miniMudo = false
+let wakeLock  = null
+
+function minimizarPlayer() {
+  const wrap     = document.getElementById("modal-video-wrap")
+  const miniWrap = document.getElementById("mini-video-wrap")
+  const v        = videoAtual
+  if (!v) return
+
+  // Mover o elemento de mídia (video/iframe) para o mini-player
+  const mediaEl = wrap.querySelector("video, iframe")
+  if (mediaEl) {
+    // Clonar se for iframe (YT não pode ser movido sem reload)
+    if (mediaEl.tagName === "IFRAME") {
+      const iframe = document.createElement("iframe")
+      iframe.src = mediaEl.src
+      iframe.allow = mediaEl.allow
+      iframe.allowFullscreen = true
+      iframe.style.cssText = "width:100%;height:100%;border:none;display:block;"
+      miniWrap.appendChild(iframe)
+      mediaEl.remove()
+    } else {
+      // Vídeo HTML5: mover diretamente mantendo o estado de reprodução
+      mediaEl.style.cssText = "width:100%;height:100%;display:block;"
+      miniWrap.appendChild(mediaEl)
+    }
+  }
+
+  document.getElementById("mini-titulo").textContent = v.titulo || "—"
+  document.getElementById("mini-player").classList.add("visivel")
+
+  // Fechar o modal sem parar o vídeo
+  document.getElementById("modal-player").classList.remove("aberto")
+  document.body.style.overflow = ""
+
+  // Ativar Wake Lock para manter tela/áudio no celular
+  ativarWakeLock()
+
+  // Habilitar interação após 200ms (evita click acidental ao minimizar)
+  setTimeout(() => {
+    document.getElementById("mini-video-wrap").classList.add("interativo")
+  }, 200)
+}
+
+function expandirPlayer() {
+  const miniWrap = document.getElementById("mini-video-wrap")
+  const wrap     = document.getElementById("modal-video-wrap")
+  const v        = videoAtual
+  if (!v) return
+
+  const mediaEl = miniWrap.querySelector("video, iframe")
+  if (mediaEl) {
+    if (mediaEl.tagName === "IFRAME") {
+      // Recriar o iframe no player principal (YT reset)
+      const iframe = document.createElement("iframe")
+      iframe.src = mediaEl.src
+      iframe.allow = mediaEl.allow
+      iframe.allowFullscreen = true
+      wrap.appendChild(iframe)
+      mediaEl.remove()
+    } else {
+      mediaEl.style.cssText = ""
+      wrap.appendChild(mediaEl)
+    }
+  }
+
+  document.getElementById("mini-player").classList.remove("visivel")
+  document.getElementById("mini-video-wrap").classList.remove("interativo")
+  document.getElementById("modal-player").classList.add("aberto")
+  document.body.style.overflow = "hidden"
+}
+
+function fecharMiniPlayer() {
+  const miniWrap = document.getElementById("mini-video-wrap")
+  const mediaEl  = miniWrap.querySelector("video, iframe")
+  if (mediaEl) mediaEl.remove()
+  document.getElementById("mini-player").classList.remove("visivel")
+  document.getElementById("mini-video-wrap").classList.remove("interativo")
+  liberarWakeLock()
+  videoAtual = null
+}
+
+function toggleMiniAudio() {
+  const video = document.getElementById("mini-video-wrap").querySelector("video")
+    || document.getElementById("modal-video-wrap").querySelector("video")
+  if (!video) return
+  miniMudo = !miniMudo
+  video.muted = miniMudo
+  document.getElementById("mini-mute-btn").textContent = miniMudo ? "🔇" : "🔊"
+}
+
+// ── Wake Lock API (celular: manter áudio ativo) ──
+async function ativarWakeLock() {
+  if (!("wakeLock" in navigator)) return
+  try {
+    wakeLock = await navigator.wakeLock.request("screen")
+    wakeLock.addEventListener("release", () => { wakeLock = null })
+  } catch {}
+}
+
+function liberarWakeLock() {
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null }
+}
+
+// Reativar Wake Lock ao voltar para a aba (celular libera ao trocar de aba)
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible") {
+    const miniAtivo = document.getElementById("mini-player").classList.contains("visivel")
+    if (miniAtivo) ativarWakeLock()
+  }
+  // Manter vídeo hospedado tocando em segundo plano
+  const video = document.getElementById("player-video")
+    || document.getElementById("mini-video-wrap").querySelector("video")
+  if (video && document.hidden) {
+    video.play().catch(() => {})
+  }
+})
+
+// ── Drag do mini-player ──
+;(function() {
+  const mp = document.getElementById("mini-player")
+  let dragging = false, ox = 0, oy = 0
+
+  function onStart(e) {
+    // Não arrastar se clicar nos botões ou no vídeo interativo
+    if (e.target.closest(".mini-btn")) return
+    if (e.target.closest(".mini-player-video.interativo")) return
+    dragging = true
+    const touch = e.touches ? e.touches[0] : e
+    ox = touch.clientX - mp.getBoundingClientRect().left
+    oy = touch.clientY - mp.getBoundingClientRect().top
+    mp.style.transition = "none"
+    e.preventDefault()
+  }
+  function onMove(e) {
+    if (!dragging) return
+    const touch = e.touches ? e.touches[0] : e
+    let x = touch.clientX - ox
+    let y = touch.clientY - oy
+    // Limitar dentro da tela
+    x = Math.max(0, Math.min(window.innerWidth  - mp.offsetWidth,  x))
+    y = Math.max(0, Math.min(window.innerHeight - mp.offsetHeight, y))
+    mp.style.left   = x + "px"
+    mp.style.top    = y + "px"
+    mp.style.right  = "auto"
+    mp.style.bottom = "auto"
+    e.preventDefault()
+  }
+  function onEnd() {
+    dragging = false
+    mp.style.transition = ""
+  }
+
+  mp.addEventListener("mousedown",  onStart, { passive: false })
+  mp.addEventListener("touchstart", onStart, { passive: false })
+  document.addEventListener("mousemove",  onMove,  { passive: false })
+  document.addEventListener("touchmove",  onMove,  { passive: false })
+  document.addEventListener("mouseup",    onEnd)
+  document.addEventListener("touchend",   onEnd)
+})()
 async function ativarPiP() {
   const video = document.getElementById("player-video")
   if (!video) { alert("PiP só funciona para vídeos hospedados no site."); return }
@@ -993,10 +1211,15 @@ function atualizarMediaSession(v) {
 }
 
 function fecharPlayer() {
+  // Se mini-player estiver ativo, fechar ele também
+  const mini = document.getElementById("mini-player")
+  if (mini.classList.contains("visivel")) {
+    fecharMiniPlayer()
+    return
+  }
   const wrap = document.getElementById("modal-video-wrap")
   const player = wrap.querySelector("video, iframe, a")
   if (player) {
-    // Sair do PiP se necessário
     if (document.pictureInPictureElement) {
       document.exitPictureInPicture().catch(() => {})
     }
@@ -1004,6 +1227,7 @@ function fecharPlayer() {
   }
   document.getElementById("modal-player").classList.remove("aberto")
   document.body.style.overflow = ""
+  liberarWakeLock()
   videoAtual = null
 }
 
@@ -1140,8 +1364,12 @@ function criarCardPlaylist(pl, editavel) {
   card.className = "video-card"
   const count = (pl.videos || []).length
   card.innerHTML = `
-    <div class="video-thumb-wrap" style="background:linear-gradient(135deg,#1a1a1a,#333);display:flex;align-items:center;justify-content:center;">
+    <div class="video-thumb-wrap" style="background:linear-gradient(135deg,#1a1a1a,#333);display:flex;align-items:center;justify-content:center;position:relative;">
       <span style="font-size:48px;">📋</span>
+      <button class="btn-add-fila" style="opacity:1;bottom:8px;right:8px;"
+        onclick="event.stopPropagation();playPlaylist(${pl.id})">
+        ▶ Play
+      </button>
     </div>
     <div class="video-info">
       <div class="video-titulo">${pl.nome}</div>
@@ -1157,6 +1385,49 @@ function criarCardPlaylist(pl, editavel) {
   `
   card.onclick = () => verPlaylist(pl)
   return card
+}
+
+function playPlaylist(plId) {
+  // Buscar a playlist — pode estar em playlists (usuário) ou em playlists públicas
+  let pl = playlists.find(p => p.id === plId)
+  if (!pl) {
+    // Tentar buscar da lista de playlists públicas já carregadas no grid
+    const cards = document.querySelectorAll("#grid-playlists-publicas .video-card")
+    // Como não temos cache das públicas, buscar via API
+    fetch(`${API}/playlists/publicas`)
+      .then(r => r.json())
+      .then(pls => {
+        const found = pls.find(p => p.id === plId)
+        if (found) _playPlaylistObj(found)
+      })
+      .catch(() => {})
+    return
+  }
+  _playPlaylistObj(pl)
+}
+
+function _playPlaylistObj(pl) {
+  const idsVideos = pl.videos || []
+  if (!idsVideos.length) { alert("Esta playlist está vazia."); return }
+
+  // Montar lista ordenada de vídeos
+  const videosPlaylist = idsVideos
+    .map(id => videos.find(v => v.id === id))
+    .filter(Boolean)
+
+  if (!videosPlaylist.length) {
+    alert("Nenhum vídeo desta playlist foi encontrado. Os vídeos podem não ter sido carregados ainda.")
+    return
+  }
+
+  // Substituir fila pelos vídeos da playlist em ordem
+  fila = [...videosPlaylist]
+  filaIndex = 0
+  atualizarBotoesFila()
+
+  // Tocar o primeiro e abrir painel da fila
+  abrirPlayer(fila[0])
+  abrirFilaPanel()
 }
 
 function verPlaylist(pl) {
@@ -1464,13 +1735,6 @@ window.sair = async function() {
 document.addEventListener("keydown", e => { if (e.key === "Escape") { fecharPlayer(); fecharModalPL(); fecharModalAddPL() } })
 
 // ── Segundo plano: manter vídeo tocando ao trocar de aba ──
-document.addEventListener("visibilitychange", () => {
-  const video = document.getElementById("player-video")
-  if (video && document.hidden) {
-    video.play().catch(() => {})
-  }
-})
-
 // ── YouTube: detectar fim do vídeo via postMessage para autoplay ──
 window.addEventListener("message", e => {
   try {
