@@ -908,6 +908,9 @@ function tocarAnterior() {
 function abrirPlayer(v) {
   videoAtual = v
 
+  // Ativar silent loop IMEDIATAMENTE (requer gesto do usuário — aqui sempre há um clique)
+  ativarAudioBackground()
+
   // Atualizar filaIndex se o vídeo está na fila
   const idxNaFila = fila.findIndex(f => f.id === v.id)
   if (idxNaFila !== -1) filaIndex = idxNaFila
@@ -985,13 +988,19 @@ function montarPlayer(v) {
     const ytMatch = v.link_externo.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)
     if (ytMatch) {
       const iframe = document.createElement("iframe")
-      iframe.src = `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1`
+      // enablejsapi=1: habilita controle via postMessage
+      // origin: necessário para postMessage funcionar
+      iframe.src = `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`
       iframe.allow = "autoplay; fullscreen; picture-in-picture"
       iframe.allowFullscreen = true
       iframe.id = "player-iframe"
       wrap.appendChild(iframe)
-      // YouTube não dispara ended diretamente — usar postMessage
-      window._ytPlayerReady = false
+
+      // Iniciar silent loop IMEDIATAMENTE para manter processo de áudio ativo
+      ativarAudioBackground()
+      // Atualizar Media Session para YT
+      atualizarMediaSession(v)
+      ativarWakeLock()
     } else {
       const a = document.createElement("a")
       a.href = v.link_externo; a.target = "_blank"
@@ -1005,9 +1014,23 @@ function montarPlayer(v) {
     video.controls    = true
     video.autoplay    = true
     video.id          = "player-video"
-    video.setAttribute("playsinline", "")        // iOS: não forçar fullscreen
-    video.setAttribute("webkit-playsinline", "") // iOS Safari legado
+    video.setAttribute("playsinline", "")
+    video.setAttribute("webkit-playsinline", "")
+    video.setAttribute("x-webkit-airplay", "allow")
+
+    video.addEventListener("play",  () => {
+      // Conectar ao Audio Context para reconhecimento pelo OS como media player
+      conectarAudioContext(video)
+      atualizarMediaSession(v)
+      navigator.mediaSession && (navigator.mediaSession.playbackState = "playing")
+      ativarWakeLock()
+    })
+    video.addEventListener("pause", () => {
+      navigator.mediaSession && (navigator.mediaSession.playbackState = "paused")
+    })
+    video.addEventListener("timeupdate", () => sincronizarMediaSessionEstado())
     video.addEventListener("ended", () => {
+      navigator.mediaSession && (navigator.mediaSession.playbackState = "none")
       if (autoplayAtivo) tocarProximo()
     })
     wrap.appendChild(video)
@@ -1097,6 +1120,7 @@ function fecharMiniPlayer() {
   if (mediaEl) mediaEl.remove()
   document.getElementById("mini-player").classList.remove("visivel")
   document.getElementById("mini-video-wrap").classList.remove("interativo")
+  pararSilentLoop()
   liberarWakeLock()
   videoAtual = null
 }
@@ -1110,10 +1134,158 @@ function toggleMiniAudio() {
   document.getElementById("mini-mute-btn").textContent = miniMudo ? "🔇" : "🔊"
 }
 
-// ── Wake Lock API (celular: manter áudio ativo) ──
+// ── SEGUNDO PLANO COMPLETO: Silent Audio Loop + Audio Context + Media Session ──
+let audioCtx         = null
+let audioSourceNode  = null
+let silentLoopNode   = null
+let silentGainNode   = null
+let bgKeepAliveTimer = null
+
+// Inicia um loop de silêncio no AudioContext — mantém o processo de áudio
+// ativo no OS mesmo quando a aba está em segundo plano (funciona para YT e vídeo local)
+function iniciarSilentLoop() {
+  if (!audioCtx || audioCtx.state === "closed") {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume()
+
+  // Parar loop anterior se existir
+  if (silentLoopNode) { try { silentLoopNode.stop() } catch {} }
+
+  // Buffer de silêncio: 1 segundo, sample rate nativo
+  const sr     = audioCtx.sampleRate
+  const buffer = audioCtx.createBuffer(1, sr, sr)
+  // Deixar buffer zerado (silêncio real — sem ruído)
+
+  silentLoopNode = audioCtx.createBufferSource()
+  silentLoopNode.buffer = buffer
+  silentLoopNode.loop   = true
+
+  // Gain quase zero — inaudível mas presente no pipeline de áudio
+  silentGainNode = audioCtx.createGain()
+  silentGainNode.gain.value = 0.001
+
+  silentLoopNode.connect(silentGainNode)
+  silentGainNode.connect(audioCtx.destination)
+  silentLoopNode.start()
+}
+
+function pararSilentLoop() {
+  if (silentLoopNode) {
+    try { silentLoopNode.stop(); silentLoopNode.disconnect() } catch {}
+    silentLoopNode = null
+  }
+}
+
+// Conecta vídeo HTML5 ao AudioContext (necessário para Media Session funcionar)
+function conectarAudioContext(videoEl) {
+  if (audioSourceNode) { try { audioSourceNode.disconnect() } catch {} }
+  if (!audioCtx || audioCtx.state === "closed") {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume()
+  try {
+    audioSourceNode = audioCtx.createMediaElementSource(videoEl)
+    audioSourceNode.connect(audioCtx.destination)
+  } catch {}
+  iniciarSilentLoop()
+}
+
+// Ativa o silent loop ao iniciar qualquer vídeo (incluindo YT)
+function ativarAudioBackground() {
+  // Precisa de gesto do usuário — chamado no onclick do player
+  try {
+    iniciarSilentLoop()
+  } catch {}
+}
+
+// ── Controle do YouTube via IFrame API (postMessage) ──
+let ytPlayerReady = false
+let ytPausedByUs  = false
+
+function ytPostMessage(cmd, args) {
+  const iframe = document.getElementById("player-iframe")
+    || document.getElementById("mini-video-wrap").querySelector("iframe")
+  if (!iframe) return
+  try {
+    iframe.contentWindow.postMessage(
+      JSON.stringify({ event: "command", func: cmd, args: args || [] }),
+      "*"
+    )
+  } catch {}
+}
+
+function ytPlay()  { ytPostMessage("playVideo") }
+function ytPause() { ytPostMessage("pauseVideo") }
+
+// ── Media Session API completa ──
+function atualizarMediaSession(v) {
+  if (!("mediaSession" in navigator)) return
+
+  const thumb = getThumbnail(v)
+  const artwork = thumb.type === "img"
+    ? [{ src: thumb.src, sizes: "512x512", type: "image/jpeg" }]
+    : []
+
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title:   v.titulo || "Vídeo",
+    artist:  v.autor  || "Omnisentis",
+    album:   "Omnisentis",
+    artwork
+  })
+  navigator.mediaSession.playbackState = "playing"
+
+  const vid = getVideoEl()
+
+  navigator.mediaSession.setActionHandler("play", () => {
+    if (vid) vid.play().catch(() => {})
+    else ytPlay()
+    navigator.mediaSession.playbackState = "playing"
+  })
+  navigator.mediaSession.setActionHandler("pause", () => {
+    if (vid) vid.pause()
+    else ytPause()
+    navigator.mediaSession.playbackState = "paused"
+  })
+  navigator.mediaSession.setActionHandler("stop",          () => fecharPlayer())
+  navigator.mediaSession.setActionHandler("previoustrack", () => tocarAnterior())
+  navigator.mediaSession.setActionHandler("nexttrack",     () => tocarProximo())
+  navigator.mediaSession.setActionHandler("seekbackward", () => {
+    if (vid) vid.currentTime = Math.max(0, vid.currentTime - 10)
+    else ytPostMessage("seekBy", [-10])
+  })
+  navigator.mediaSession.setActionHandler("seekforward", () => {
+    if (vid) vid.currentTime += 10
+    else ytPostMessage("seekBy", [10])
+  })
+}
+
+function getVideoEl() {
+  return document.getElementById("mini-video-wrap").querySelector("video")
+    || document.getElementById("modal-video-wrap").querySelector("video")
+}
+
+function sincronizarMediaSessionEstado() {
+  if (!("mediaSession" in navigator)) return
+  const vid = getVideoEl()
+  if (!vid) return
+  navigator.mediaSession.playbackState = vid.paused ? "paused" : "playing"
+  if (vid.duration && !isNaN(vid.duration)) {
+    try {
+      navigator.mediaSession.setPositionState({
+        duration:     vid.duration,
+        playbackRate: vid.playbackRate,
+        position:     vid.currentTime
+      })
+    } catch {}
+  }
+}
+
+// ── Wake Lock ──
 async function ativarWakeLock() {
   if (!("wakeLock" in navigator)) return
   try {
+    if (wakeLock) return
     wakeLock = await navigator.wakeLock.request("screen")
     wakeLock.addEventListener("release", () => { wakeLock = null })
   } catch {}
@@ -1123,17 +1295,41 @@ function liberarWakeLock() {
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null }
 }
 
-// Reativar Wake Lock ao voltar para a aba (celular libera ao trocar de aba)
+// ── Visibilidade: manter tudo tocando ao sair do app ──
 document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState === "visible") {
+    // Voltou ao app — retomar tudo
+    if (audioCtx?.state === "suspended") audioCtx.resume()
+    iniciarSilentLoop()
     const miniAtivo = document.getElementById("mini-player").classList.contains("visivel")
     if (miniAtivo) ativarWakeLock()
-  }
-  // Manter vídeo hospedado tocando em segundo plano
-  const video = document.getElementById("player-video")
-    || document.getElementById("mini-video-wrap").querySelector("video")
-  if (video && document.hidden) {
-    video.play().catch(() => {})
+
+    const vid = getVideoEl()
+    if (vid && vid.paused) vid.play().catch(() => {})
+    navigator.mediaSession && (navigator.mediaSession.playbackState = "playing")
+
+  } else {
+    // Saiu do app
+    // 1. Garantir AudioContext ativo (mantém processo de áudio no OS)
+    if (audioCtx?.state === "suspended") audioCtx.resume()
+
+    // 2. Reforçar o silent loop
+    iniciarSilentLoop()
+
+    // 3. Para vídeo local: forçar play após 300ms (browser pode ter pausado)
+    const vid = getVideoEl()
+    if (vid) {
+      setTimeout(() => { vid.play().catch(() => {}) }, 300)
+    }
+
+    // 4. Para YouTube: enviar play via postMessage
+    const hasYT = !!(
+      document.getElementById("player-iframe") ||
+      document.getElementById("mini-video-wrap").querySelector("iframe")
+    )
+    if (hasYT) {
+      setTimeout(() => ytPlay(), 300)
+    }
   }
 })
 
@@ -1227,6 +1423,7 @@ function fecharPlayer() {
   }
   document.getElementById("modal-player").classList.remove("aberto")
   document.body.style.overflow = ""
+  pararSilentLoop()
   liberarWakeLock()
   videoAtual = null
 }
@@ -1744,6 +1941,21 @@ window.addEventListener("message", e => {
     }
   } catch {}
 })
+
+// ── Service Worker: registrar para reconhecimento como media app ──
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    console.log("SW registrado:", reg.scope)
+  }).catch(() => {})
+}
+
+// ── Keepalive: manter SW ativo enquanto há vídeo tocando ──
+setInterval(() => {
+  const vid = getVideoEl()
+  if (vid && !vid.paused && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage("keepalive")
+  }
+}, 20000)
 
 init()
 </script>
