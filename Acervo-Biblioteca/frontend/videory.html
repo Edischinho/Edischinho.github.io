@@ -755,7 +755,21 @@ function criarCardVideo(v) {
       <div class="video-tags">${tagsPills}</div>
     </div>
   `
-  card.onclick = () => abrirPlayer(v)
+  card.onclick = () => {
+    if (playlistAtiva) {
+      // Carregar todos os vídeos da playlist na fila a partir do clicado
+      const idsOrdenados = playlistAtiva.videos || []
+      const videosOrdenados = idsOrdenados
+        .map(id => videos.find(vv => vv.id === id)).filter(Boolean)
+      const idxClicado = videosOrdenados.findIndex(vv => vv.id === v.id)
+      if (idxClicado !== -1) {
+        fila = [...videosOrdenados]
+        filaIndex = idxClicado
+        atualizarBotoesFila()
+      }
+    }
+    abrirPlayer(v)
+  }
   return card
 }
 
@@ -906,9 +920,20 @@ function tocarAnterior() {
 
 // ── Player ──
 function abrirPlayer(v) {
+  // ── Garantir um vídeo por vez ──
+  // Se mini-player estiver ativo com OUTRO vídeo, fechar o mini primeiro
+  const miniAtivo = document.getElementById("mini-player").classList.contains("visivel")
+  if (miniAtivo) {
+    const miniWrap = document.getElementById("mini-video-wrap")
+    const mediaEl  = miniWrap.querySelector("video, iframe")
+    if (mediaEl) mediaEl.remove()
+    document.getElementById("mini-player").classList.remove("visivel")
+    document.getElementById("mini-video-wrap").classList.remove("interativo")
+  }
+
   videoAtual = v
 
-  // Ativar silent loop IMEDIATAMENTE (requer gesto do usuário — aqui sempre há um clique)
+  // Ativar silent loop IMEDIATAMENTE (requer gesto do usuário)
   ativarAudioBackground()
 
   // Atualizar filaIndex se o vídeo está na fila
@@ -980,9 +1005,13 @@ function abrirPlayer(v) {
 }
 
 function montarPlayer(v) {
-  const wrap = document.getElementById("modal-video-wrap")
-  const oldPlayer = wrap.querySelector("video, iframe, a")
-  if (oldPlayer) oldPlayer.remove()
+  const wrap     = document.getElementById("modal-video-wrap")
+  const miniWrap = document.getElementById("mini-video-wrap")
+  // Remover qualquer player existente nos dois containers
+  ;[wrap, miniWrap].forEach(w => {
+    const old = w.querySelector("video, iframe, a")
+    if (old) old.remove()
+  })
 
   if (v.link_externo) {
     const ytMatch = v.link_externo.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)
@@ -1051,39 +1080,36 @@ function minimizarPlayer() {
   const v        = videoAtual
   if (!v) return
 
-  // Mover o elemento de mídia (video/iframe) para o mini-player
   const mediaEl = wrap.querySelector("video, iframe")
   if (mediaEl) {
-    // Clonar se for iframe (YT não pode ser movido sem reload)
     if (mediaEl.tagName === "IFRAME") {
-      const iframe = document.createElement("iframe")
-      iframe.src = mediaEl.src
-      iframe.allow = mediaEl.allow
-      iframe.allowFullscreen = true
-      iframe.style.cssText = "width:100%;height:100%;border:none;display:block;"
-      miniWrap.appendChild(iframe)
-      mediaEl.remove()
+      // YouTube: NÃO recriar o iframe — mover diretamente no DOM
+      // isso preserva o estado de reprodução sem reload
+      mediaEl.style.cssText = "width:100%;height:100%;border:none;display:block;"
+      miniWrap.appendChild(mediaEl) // move sem clonar
     } else {
-      // Vídeo HTML5: mover diretamente mantendo o estado de reprodução
+      // Vídeo HTML5: mover diretamente preservando currentTime e estado
+      const currentTime  = mediaEl.currentTime
+      const wasPlaying   = !mediaEl.paused
       mediaEl.style.cssText = "width:100%;height:100%;display:block;"
-      miniWrap.appendChild(mediaEl)
+      miniWrap.appendChild(mediaEl) // mover no DOM — não reinicia
+      // Restaurar estado após move (alguns browsers resetam)
+      if (Math.abs(mediaEl.currentTime - currentTime) > 0.5) {
+        mediaEl.currentTime = currentTime
+      }
+      if (wasPlaying) mediaEl.play().catch(() => {})
     }
   }
 
   document.getElementById("mini-titulo").textContent = v.titulo || "—"
   document.getElementById("mini-player").classList.add("visivel")
-
-  // Fechar o modal sem parar o vídeo
   document.getElementById("modal-player").classList.remove("aberto")
   document.body.style.overflow = ""
-
-  // Ativar Wake Lock para manter tela/áudio no celular
   ativarWakeLock()
 
-  // Habilitar interação após 200ms (evita click acidental ao minimizar)
   setTimeout(() => {
     document.getElementById("mini-video-wrap").classList.add("interativo")
-  }, 200)
+  }, 150)
 }
 
 function expandirPlayer() {
@@ -1095,16 +1121,19 @@ function expandirPlayer() {
   const mediaEl = miniWrap.querySelector("video, iframe")
   if (mediaEl) {
     if (mediaEl.tagName === "IFRAME") {
-      // Recriar o iframe no player principal (YT reset)
-      const iframe = document.createElement("iframe")
-      iframe.src = mediaEl.src
-      iframe.allow = mediaEl.allow
-      iframe.allowFullscreen = true
-      wrap.appendChild(iframe)
-      mediaEl.remove()
+      // YouTube: mover diretamente sem recriar — preserva estado
+      mediaEl.style.cssText = "width:100%;height:100%;border:none;"
+      wrap.appendChild(mediaEl)
     } else {
+      // Vídeo HTML5: mover preservando currentTime
+      const currentTime = mediaEl.currentTime
+      const wasPlaying  = !mediaEl.paused
       mediaEl.style.cssText = ""
       wrap.appendChild(mediaEl)
+      if (Math.abs(mediaEl.currentTime - currentTime) > 0.5) {
+        mediaEl.currentTime = currentTime
+      }
+      if (wasPlaying) mediaEl.play().catch(() => {})
     }
   }
 
@@ -1627,9 +1656,13 @@ function _playPlaylistObj(pl) {
   abrirFilaPanel()
 }
 
+// ── Playlist ativa (para carregar fila ao clicar vídeo) ──
+let playlistAtiva = null  // { id, videos: [ids em ordem] }
+
 function verPlaylist(pl) {
   const idsVideos = pl.videos || []
-  const lista = videos.filter(v => idsVideos.includes(v.id))
+  const lista = idsVideos.map(id => videos.find(v => v.id === id)).filter(Boolean)
+  playlistAtiva = { id: pl.id, videos: idsVideos, nome: pl.nome }
   document.getElementById("busca-input").value = ""
   setAba("todos", document.querySelector(".aba-btn"))
   renderVideos(lista.length ? lista : [])
@@ -1638,6 +1671,7 @@ function verPlaylist(pl) {
 }
 
 function voltarTodos() {
+  playlistAtiva = null
   document.getElementById("busca-input").value = ""
   document.getElementById("titulo-secao-todos").textContent = "🎬 Todos os vídeos"
   document.getElementById("btn-voltar-todos").classList.remove("visivel")
