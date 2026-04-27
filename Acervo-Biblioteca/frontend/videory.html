@@ -188,6 +188,14 @@
       overflow-y: auto; padding: 20px;
     }
     .modal-overlay.aberto { display: flex; }
+    /* Modo minimizado: modal fica invisível mas o vídeo continua no DOM */
+    .modal-overlay.minimizado {
+      display: flex;
+      background: transparent;
+      pointer-events: none;
+      opacity: 0;
+      z-index: -1;
+    }
     .modal-player {
       background: var(--surface); border-radius: 14px;
       width: 100%; max-width: 900px;
@@ -1075,36 +1083,46 @@ let miniMudo = false
 let wakeLock  = null
 
 function minimizarPlayer() {
-  const wrap     = document.getElementById("modal-video-wrap")
-  const miniWrap = document.getElementById("mini-video-wrap")
-  const v        = videoAtual
+  const v = videoAtual
   if (!v) return
 
-  const mediaEl = wrap.querySelector("video, iframe")
+  // Ao invés de mover o elemento de vídeo (que causa reset),
+  // deixamos o modal invisível (z-index:-1, opacity:0) e
+  // mostramos o mini-player como uma janelinha que espelha o título.
+  // O vídeo continua tocando dentro do modal invisível sem interrupção.
+  const overlay = document.getElementById("modal-player")
+  overlay.classList.remove("aberto")
+  overlay.classList.add("minimizado")  // display:flex mas invisible
+  document.body.style.overflow = ""
+
+  // Mostrar mini-player com o vídeo DENTRO do mini-video-wrap
+  // Só mover o elemento agora que o modal está "display:flex" (não display:none)
+  const wrap     = document.getElementById("modal-video-wrap")
+  const miniWrap = document.getElementById("mini-video-wrap")
+  const mediaEl  = wrap.querySelector("video, iframe")
+
   if (mediaEl) {
-    if (mediaEl.tagName === "IFRAME") {
-      // YouTube: NÃO recriar o iframe — mover diretamente no DOM
-      // isso preserva o estado de reprodução sem reload
-      mediaEl.style.cssText = "width:100%;height:100%;border:none;display:block;"
-      miniWrap.appendChild(mediaEl) // move sem clonar
-    } else {
-      // Vídeo HTML5: mover diretamente preservando currentTime e estado
-      const currentTime  = mediaEl.currentTime
-      const wasPlaying   = !mediaEl.paused
+    if (mediaEl.tagName === "VIDEO") {
+      // Salvar estado
+      const t = mediaEl.currentTime
+      const playing = !mediaEl.paused
       mediaEl.style.cssText = "width:100%;height:100%;display:block;"
-      miniWrap.appendChild(mediaEl) // mover no DOM — não reinicia
-      // Restaurar estado após move (alguns browsers resetam)
-      if (Math.abs(mediaEl.currentTime - currentTime) > 0.5) {
-        mediaEl.currentTime = currentTime
-      }
-      if (wasPlaying) mediaEl.play().catch(() => {})
+      miniWrap.appendChild(mediaEl)
+      // Restaurar estado se browser resetou
+      requestAnimationFrame(() => {
+        if (Math.abs(mediaEl.currentTime - t) > 1) mediaEl.currentTime = t
+        if (playing && mediaEl.paused) mediaEl.play().catch(() => {})
+      })
+    } else {
+      // IFRAME: como o modal está display:flex (apenas invisível),
+      // mover o iframe NÃO causa reload
+      mediaEl.style.cssText = "width:100%;height:100%;border:none;display:block;"
+      miniWrap.appendChild(mediaEl)
     }
   }
 
   document.getElementById("mini-titulo").textContent = v.titulo || "—"
   document.getElementById("mini-player").classList.add("visivel")
-  document.getElementById("modal-player").classList.remove("aberto")
-  document.body.style.overflow = ""
   ativarWakeLock()
 
   setTimeout(() => {
@@ -1120,26 +1138,27 @@ function expandirPlayer() {
 
   const mediaEl = miniWrap.querySelector("video, iframe")
   if (mediaEl) {
-    if (mediaEl.tagName === "IFRAME") {
-      // YouTube: mover diretamente sem recriar — preserva estado
-      mediaEl.style.cssText = "width:100%;height:100%;border:none;"
-      wrap.appendChild(mediaEl)
-    } else {
-      // Vídeo HTML5: mover preservando currentTime
-      const currentTime = mediaEl.currentTime
-      const wasPlaying  = !mediaEl.paused
+    if (mediaEl.tagName === "VIDEO") {
+      const t = mediaEl.currentTime
+      const playing = !mediaEl.paused
       mediaEl.style.cssText = ""
       wrap.appendChild(mediaEl)
-      if (Math.abs(mediaEl.currentTime - currentTime) > 0.5) {
-        mediaEl.currentTime = currentTime
-      }
-      if (wasPlaying) mediaEl.play().catch(() => {})
+      requestAnimationFrame(() => {
+        if (Math.abs(mediaEl.currentTime - t) > 1) mediaEl.currentTime = t
+        if (playing && mediaEl.paused) mediaEl.play().catch(() => {})
+      })
+    } else {
+      mediaEl.style.cssText = "width:100%;height:100%;border:none;"
+      wrap.appendChild(mediaEl)
     }
   }
 
   document.getElementById("mini-player").classList.remove("visivel")
   document.getElementById("mini-video-wrap").classList.remove("interativo")
-  document.getElementById("modal-player").classList.add("aberto")
+
+  const overlay = document.getElementById("modal-player")
+  overlay.classList.remove("minimizado")
+  overlay.classList.add("aberto")
   document.body.style.overflow = "hidden"
 }
 
@@ -1147,8 +1166,16 @@ function fecharMiniPlayer() {
   const miniWrap = document.getElementById("mini-video-wrap")
   const mediaEl  = miniWrap.querySelector("video, iframe")
   if (mediaEl) mediaEl.remove()
+
+  // Também limpar o modal-video-wrap caso tenha algo lá
+  const wrap = document.getElementById("modal-video-wrap")
+  const mainEl = wrap.querySelector("video, iframe, a")
+  if (mainEl) mainEl.remove()
+
   document.getElementById("mini-player").classList.remove("visivel")
   document.getElementById("mini-video-wrap").classList.remove("interativo")
+  document.getElementById("modal-player").classList.remove("aberto", "minimizado")
+  document.body.style.overflow = ""
   pararSilentLoop()
   liberarWakeLock()
   videoAtual = null
@@ -1438,10 +1465,16 @@ function atualizarMediaSession(v) {
 function fecharPlayer() {
   // Se mini-player estiver ativo, fechar ele também
   const mini = document.getElementById("mini-player")
+  const overlay = document.getElementById("modal-player")
+
   if (mini.classList.contains("visivel")) {
-    fecharMiniPlayer()
-    return
+    const miniWrap = document.getElementById("mini-video-wrap")
+    const mediaEl  = miniWrap.querySelector("video, iframe")
+    if (mediaEl) mediaEl.remove()
+    mini.classList.remove("visivel")
+    document.getElementById("mini-video-wrap").classList.remove("interativo")
   }
+
   const wrap = document.getElementById("modal-video-wrap")
   const player = wrap.querySelector("video, iframe, a")
   if (player) {
@@ -1450,7 +1483,8 @@ function fecharPlayer() {
     }
     player.remove()
   }
-  document.getElementById("modal-player").classList.remove("aberto")
+
+  overlay.classList.remove("aberto", "minimizado")
   document.body.style.overflow = ""
   pararSilentLoop()
   liberarWakeLock()
@@ -1458,7 +1492,9 @@ function fecharPlayer() {
 }
 
 function fecharPlayerOverlay(e) {
-  if (e.target === document.getElementById("modal-player")) fecharPlayer()
+  const overlay = document.getElementById("modal-player")
+  if (overlay.classList.contains("minimizado")) return // ignorar quando mini
+  if (e.target === overlay) fecharPlayer()
 }
 
 // Captura frame do vídeo e coloca no lugar da tag video
