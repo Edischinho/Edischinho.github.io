@@ -474,6 +474,15 @@
 <script>
 const API = "https://edischinho-github-io.onrender.com"
 
+function normalizarGoogleDriveLink(url) {
+  if (!url) return url;
+  const match = url.match(/drive\.google\.com\/file\/d\/([^\/]+)\/view/);
+  if (match) {
+    return `https://drive.google.com/file/d/${match[1]}/preview`;
+  }
+  return url;
+}
+  
 function authHeader() {
   const token = localStorage.getItem("sl_admin_token") || ""
   return token ? { "Authorization": "Bearer " + token } : {}
