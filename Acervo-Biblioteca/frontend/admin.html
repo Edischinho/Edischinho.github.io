@@ -256,7 +256,11 @@
         <input type="file" id="v-arquivo" accept="video/*">
       </label>
       <span id="v-file-name">Nenhum arquivo selecionado</span>
-      <input id="v-link" placeholder="Ou cole um link (YouTube, etc.)">
+      <input id="v-link" placeholder="Ou cole um link (YouTube, Google Drive, etc.)">
+      <p style="font-size:11px;color:#888;margin:-6px 0 8px;padding:6px 8px;background:#f5f5f5;border-radius:5px;border-left:3px solid #4285f4;">
+        📁 <strong>Google Drive:</strong> cole o link de compartilhamento do arquivo de vídeo.<br>
+        O arquivo deve estar com acesso <em>"Qualquer pessoa com o link"</em> no Drive.
+      </p>
     </div>
 
     <!-- Capa -->
@@ -419,7 +423,7 @@
       <input id="edit-v-tags" placeholder="#tag1 #tag2 ...">
       <div class="tags-preview" id="edit-v-tags-preview"></div>
     </div>
-    <input id="edit-v-link"      placeholder="Link externo (YouTube, etc.)">
+    <input id="edit-v-link" placeholder="Link externo (YouTube, Google Drive, etc.)">
     <!-- Arquivos relacionados da livraria -->
     <div style="margin-bottom:10px;">
       <label style="font-size:13px;color:#666;display:block;margin-bottom:6px;">📚 Arquivos relacionados da livraria:</label>
@@ -474,15 +478,6 @@
 <script>
 const API = "https://edischinho-github-io.onrender.com"
 
-function normalizarGoogleDriveLink(url) {
-  if (!url) return url;
-  const match = url.match(/drive\.google\.com\/file\/d\/([^\/]+)\/view/);
-  if (match) {
-    return `https://drive.google.com/file/d/${match[1]}/preview`;
-  }
-  return url;
-}
-  
 function authHeader() {
   const token = localStorage.getItem("sl_admin_token") || ""
   return token ? { "Authorization": "Bearer " + token } : {}
