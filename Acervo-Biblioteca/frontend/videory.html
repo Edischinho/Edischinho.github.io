@@ -748,11 +748,16 @@ function renderVideos(lista) {
 // ── Google Drive: extrair ID do arquivo ──
 function getDriveFileId(url) {
   if (!url) return null
-  // Só processar URLs explicitamente do Google Drive
-  if (!url.includes("drive.google.com")) return null
+  // Formatos suportados:
+  // https://drive.google.com/file/d/FILE_ID/view
+  // https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+  // https://drive.google.com/open?id=FILE_ID
+  // https://drive.google.com/uc?id=FILE_ID
+  // https://drive.google.com/uc?export=download&id=FILE_ID
   const patterns = [
     /\/file\/d\/([a-zA-Z0-9_-]{10,})/,
     /[?&]id=([a-zA-Z0-9_-]{10,})/,
+    /\/d\/([a-zA-Z0-9_-]{10,})\//,
   ]
   for (const p of patterns) {
     const m = url.match(p)
@@ -1232,8 +1237,6 @@ function desativarDragMini() {
 
 function _dragStart(e) {
   if (modoAtual !== "mini") return
-  // Não arrastar se clicar no vídeo, iframe, botões ou na área do vídeo
-  if (e.target.closest && e.target.closest(".modal-video-wrap")) return
   if (e.target.tagName === "BUTTON" || e.target.tagName === "VIDEO" || e.target.tagName === "IFRAME") return
   _dragActive = true
   const c     = document.getElementById("player-container")
