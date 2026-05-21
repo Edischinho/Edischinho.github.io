@@ -392,6 +392,11 @@
     }
     #player-container.modo-mini .modal-video-wrap {
       cursor: default;
+      pointer-events: auto;
+    }
+    #player-container.modo-mini .modal-video-wrap video,
+    #player-container.modo-mini .modal-video-wrap iframe {
+      pointer-events: auto;
     }
 
     @media (max-width: 768px) {
@@ -1237,6 +1242,8 @@ function desativarDragMini() {
 
 function _dragStart(e) {
   if (modoAtual !== "mini") return
+  // Não arrastar se clicar no vídeo, iframe, botões ou na área do vídeo
+  if (e.target.closest && e.target.closest(".modal-video-wrap")) return
   if (e.target.tagName === "BUTTON" || e.target.tagName === "VIDEO" || e.target.tagName === "IFRAME") return
   _dragActive = true
   const c     = document.getElementById("player-container")
