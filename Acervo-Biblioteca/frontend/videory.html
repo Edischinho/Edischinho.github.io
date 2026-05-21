@@ -707,12 +707,53 @@ function getThumbnail(v) {
   if (v.capa_url) return { type: "img", src: v.capa_url }
   // YouTube
   if (v.link_externo) {
-    const ytMatch = v.link_externo.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)
-    if (ytMatch) return { type: "img", src: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg` }
+  const ytMatch = v.link_externo.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+  const gdMatch = v.link_externo.match(/drive\.google\.com\/file\/d\/([^\/]+)\/view/);
+  const gdPreviewMatch = v.link_externo.match(/drive\.google\.com\/file\/d\/([^\/]+)\/preview/);
+  const directVideoMatch = v.link_externo.match(/\.(mp4|webm|mov|avi|mkv)(\?|$)/i);
+
+    if (ytMatch) {
+      const iframe = document.createElement("iframe");
+      iframe.src = `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`;
+      iframe.allow = "autoplay; fullscreen; picture-in-picture";
+      iframe.allowFullscreen = true;
+      iframe.id = "player-iframe";
+      wrap.appendChild(iframe);
+      ativarAudioBackground();
+      atualizarMediaSession(v);
+      ativarWakeLock();
+  } else if (gdMatch || gdPreviewMatch) {
+      const fileId = (gdMatch || gdPreviewMatch)[1];
+      const embedUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+      const iframe = document.createElement("iframe");
+      iframe.src = embedUrl;
+      iframe.allow = "autoplay; fullscreen; picture-in-picture";
+      iframe.allowFullscreen = true;
+      wrap.appendChild(iframe);
+      ativarAudioBackground();
+      atualizarMediaSession(v);
+      ativarWakeLock();
+  } else if (directVideoMatch) {
+      const video = document.createElement("video");
+      video.src = v.link_externo;
+      video.controls = true;
+      video.autoplay = true;
+      video.id = "player-video";
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+      video.addEventListener("play", () => { conectarAudioContext(video); atualizarMediaSession(v); ativarWakeLock(); });
+      video.addEventListener("pause", () => { navigator.mediaSession && (navigator.mediaSession.playbackState = "paused"); });
+      video.addEventListener("timeupdate", () => sincronizarMediaSessionEstado());
+      video.addEventListener("ended", () => { if (autoplayAtivo) tocarProximo(); });
+      wrap.appendChild(video);
+  } else {
+      const a = document.createElement("a");
+      a.href = v.link_externo;
+      a.target = "_blank";
+      a.style.cssText = "display:flex;align-items:center;justify-content:center;height:100%;color:#ffd700;font-size:16px;text-decoration:none;";
+      a.textContent = "▶ Abrir vídeo externo";
+      wrap.appendChild(a);
   }
-  // Vídeo hospedado — gera thumbnail via canvas
-  if (v.video_url) return { type: "video", src: v.video_url }
-  return { type: "placeholder" }
 }
 
 function criarCardVideo(v) {
