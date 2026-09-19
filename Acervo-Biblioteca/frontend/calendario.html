@@ -363,11 +363,23 @@ const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
 // ── Chave localStorage ──
 function chaveEv() { return "sl_cal_" + (userId || "local") }
 
+// ── Controle de notificações: guarda o último estágio de urgência já ──
+// ── notificado por e-mail para cada programação, para saber quando mudou ──
+let niveisNotificados = {} // { [eventoId]: "urgente" | "passivel" | "tranquilo" | "normal" }
+function chaveNotif() { return "sl_cal_notif_" + (userId || "local") }
+function carregarNiveisNotificados() {
+  try { niveisNotificados = JSON.parse(localStorage.getItem(chaveNotif()) || "{}") } catch { niveisNotificados = {} }
+}
+function salvarNiveisNotificados() {
+  try { localStorage.setItem(chaveNotif(), JSON.stringify(niveisNotificados)) } catch {}
+}
+
 // ── Init ──
 async function init() {
   const { data } = await _supa.auth.getSession()
   if (!data.session) { location.href = "login.html?next=calendario.html"; return }
   userId = data.session.user.id
+  carregarNiveisNotificados()
 
   // Carregar localStorage primeiro (rápido)
   try { eventos = JSON.parse(localStorage.getItem(chaveEv()) || "[]") } catch { eventos = [] }
@@ -379,6 +391,12 @@ async function init() {
   // Depois sincronizar com Supabase
   await sincronizarEventos()
   renderizar()
+
+  // Verifica, para todas as programações, se o estágio de urgência mudou
+  // desde a última vez que o app foi aberto (o tempo passa mesmo sem edição)
+  await verificarTodasUrgencias()
+  // ...e continua verificando periodicamente enquanto a página ficar aberta
+  setInterval(verificarTodasUrgencias, 6 * 60 * 60 * 1000) // a cada 6h
 }
 
 // ── Supabase: carregar eventos ──
@@ -775,7 +793,8 @@ async function salvarEvento() {
 
   if (fim <= inicio) { alert("A hora de fim deve ser após o início."); return }
 
-  let evSalvo = null
+  let evSalvo  = null
+  let ehNovo   = evEditing === null
 
   if (evEditing !== null) {
     // Editar
@@ -794,9 +813,11 @@ async function salvarEvento() {
   fecharModal()
   renderizar()
 
-  // Envia um e-mail personalizado para a conta do usuário, de acordo
-  // com o estágio de urgência da programação (urgente/passível/tranquilo/normal)
-  if (evSalvo) enviarEmailProgramacao(evSalvo)
+  // Envia o e-mail apenas em dois casos: (1) a programação está sendo
+  // registrada agora, ou (2) o estágio de urgência mudou em relação à
+  // última vez que foi notificado. Uma edição que não muda o estágio
+  // (ex: só o texto da descrição) não dispara um novo e-mail.
+  if (evSalvo) await verificarEAtualizarNivel(evSalvo, ehNovo)
 }
 
 // ── Determina o estágio (urgência) de uma programação a partir dos dias restantes ──
@@ -807,20 +828,45 @@ function determinarUrgencia(diasRestantes) {
   return { label: "📌 Programado", nivel: "normal" }
 }
 
+// ── Verifica o estágio atual de uma programação e decide se precisa notificar ──
+// (novo registro, ou mudança de estágio em relação à última notificação enviada)
+async function verificarEAtualizarNivel(ev, ehNovoRegistro) {
+  const hoje0  = new Date(); hoje0.setHours(0, 0, 0, 0)
+  const iniDia = new Date(ev.inicio); iniDia.setHours(0, 0, 0, 0)
+  const diasRestantes = Math.floor((iniDia - hoje0) / (1000 * 60 * 60 * 24))
+  if (diasRestantes < 0) return // não notifica programações que já passaram
+
+  const { label, nivel } = determinarUrgencia(diasRestantes)
+  const nivelAnterior  = niveisNotificados[ev.id]
+  const mudouDeEstagio = nivelAnterior !== undefined && nivelAnterior !== nivel
+  const precisaEnviar  = ehNovoRegistro || mudouDeEstagio
+
+  if (precisaEnviar) {
+    await enviarEmailProgramacao(ev, label, ehNovoRegistro)
+  }
+
+  // Sempre atualiza o "estágio conhecido", mesmo sem enviar, para poder
+  // detectar a próxima mudança de urgência corretamente
+  niveisNotificados[ev.id] = nivel
+  salvarNiveisNotificados()
+}
+
+// ── Verifica TODAS as programações futuras — chamado ao abrir o app e ──
+// ── periodicamente, pois o estágio de urgência muda com a passagem do tempo ──
+async function verificarTodasUrgencias() {
+  for (const ev of eventos) {
+    await verificarEAtualizarNivel(ev, false)
+  }
+}
+
 // ── Envia uma notificação por e-mail personalizada para a conta do usuário, ──
 // ── automaticamente, via API do EmailJS (não abre nada no navegador do usuário) ──
-async function enviarEmailProgramacao(ev) {
+async function enviarEmailProgramacao(ev, label, ehNovoRegistro) {
   try {
     const { data } = await _supa.auth.getSession()
     const emailUsuario = data?.session?.user?.email
     if (!emailUsuario) return
 
-    const hoje0  = new Date(); hoje0.setHours(0, 0, 0, 0)
-    const iniDia = new Date(ev.inicio); iniDia.setHours(0, 0, 0, 0)
-    const diasRestantes = Math.floor((iniDia - hoje0) / (1000 * 60 * 60 * 24))
-    if (diasRestantes < 0) return // não notifica programações que já passaram
-
-    const { label } = determinarUrgencia(diasRestantes)
     const dataFormatada = ev.inicio.toLocaleDateString("pt-BR", {
       weekday: "long", day: "numeric", month: "long", year: "numeric"
     })
@@ -830,15 +876,18 @@ async function enviarEmailProgramacao(ev) {
       return
     }
 
+    const motivo = ehNovoRegistro ? "Nova programação registrada" : "Mudança no estágio de urgência"
+
     // Parâmetros enviados para o template do EmailJS — os nomes precisam
-    // ser exatamente {{to_email}}, {{titulo}}, {{data_evento}}, {{urgencia}}
-    // e {{descricao}} dentro do template criado no painel do EmailJS
+    // ser exatamente {{to_email}}, {{titulo}}, {{data_evento}}, {{urgencia}},
+    // {{descricao}} e {{motivo}} dentro do template criado no painel do EmailJS
     await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
       to_email:    emailUsuario,
       titulo:      ev.titulo,
       data_evento: `${dataFormatada} às ${horaStr(ev.inicio)}`,
       urgencia:    label,
-      descricao:   ev.desc && ev.desc.trim() ? ev.desc : "(sem descrição)"
+      descricao:   ev.desc && ev.desc.trim() ? ev.desc : "(sem descrição)",
+      motivo
     })
   } catch (err) {
     console.warn("Não foi possível enviar o e-mail de notificação:", err)
@@ -851,6 +900,8 @@ async function deletarEvento() {
   await deletarEventoSupabase(evEditing)
   eventos = eventos.filter(e => e.id !== evEditing)
   persistirLocal()
+  delete niveisNotificados[evEditing]
+  salvarNiveisNotificados()
   fecharModal()
   renderizar()
 }
