@@ -276,6 +276,13 @@
       <div class="cor-btn apagar" data-cor="" title="Apagar highlight" onclick="selecionarCor(this,'')">✕</div>
     </div>
     <button class="ctrl-btn" onclick="baixarPDF()" title="Baixar PDF">⬇ Download</button>
+    <button class="ctrl-btn" onclick="imprimirDocumento()" title="Imprimir documento">🖨 Imprimir</button>
+    <button class="ctrl-btn" id="btn-fullscreen" onclick="toggleTelaCheia()" title="Tela cheia">⛶ Tela cheia</button>
+    <div class="zoom-wrap" style="display:flex;align-items:center;gap:4px;">
+      <button class="ctrl-btn" onclick="alterarZoom(-0.1)" title="Diminuir zoom">➖</button>
+      <span class="pagina-info" id="zoom-info">100%</span>
+      <button class="ctrl-btn" onclick="alterarZoom(0.1)" title="Aumentar zoom">➕</button>
+    </div>
     <div id="btn-conta-wrap" style="position:relative"></div>
   </div>
 </div>
@@ -1279,6 +1286,67 @@
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); salvarNota() }
   })
 
+  // ─────────────────────────────────────────────
+  // ── IMPRIMIR / TELA CHEIA / ZOOM ──
+  // ─────────────────────────────────────────────
+
+  // Imprime o PDF original (qualidade cheia), sem depender dos canvases renderizados
+  function imprimirDocumento() {
+    const url = decodeURIComponent(pdfUrl)
+    if (!url) return
+    try {
+      const iframe = document.createElement("iframe")
+      iframe.style.position = "fixed"
+      iframe.style.right    = "0"
+      iframe.style.bottom   = "0"
+      iframe.style.width    = "0"
+      iframe.style.height   = "0"
+      iframe.style.border   = "0"
+      iframe.src = url
+      document.body.appendChild(iframe)
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow.focus()
+          iframe.contentWindow.print()
+        } catch {
+          window.open(url, "_blank")
+        }
+        setTimeout(() => iframe.remove(), 60000)
+      }
+    } catch {
+      window.open(url, "_blank")
+    }
+  }
+
+  // Alterna o modo de tela cheia
+  function toggleTelaCheia() {
+    const btn = document.getElementById("btn-fullscreen")
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen()
+        .then(() => { if (btn) btn.classList.add("ativo") })
+        .catch(() => {})
+    } else {
+      document.exitFullscreen().then(() => { if (btn) btn.classList.remove("ativo") })
+    }
+  }
+  document.addEventListener("fullscreenchange", () => {
+    const btn = document.getElementById("btn-fullscreen")
+    if (btn) btn.classList.toggle("ativo", !!document.fullscreenElement)
+  })
+
+  // Zoom das páginas (aplica uma escala visual sobre o viewer)
+  let zoomAtual = 1
+  function alterarZoom(delta) {
+    zoomAtual = Math.min(2.5, Math.max(0.5, +(zoomAtual + delta).toFixed(2)))
+    viewer.style.transformOrigin = "top center"
+    viewer.style.transform  = `scale(${zoomAtual})`
+    viewer.style.width      = `${100 / zoomAtual}%`
+    viewer.style.marginLeft  = "auto"
+    viewer.style.marginRight = "auto"
+    const info = document.getElementById("zoom-info")
+    if (info) info.textContent = Math.round(zoomAtual * 100) + "%"
+  }
+
   // ── Erro ──
   function mostrarErro(msg) {
     viewer.style.display = "none"
@@ -1349,6 +1417,9 @@
   window.irParaNota        = irParaNota
   window.irParaHL          = irParaHL
   window.deletarHL         = deletarHL
+  window.imprimirDocumento = imprimirDocumento
+  window.toggleTelaCheia   = toggleTelaCheia
+  window.alterarZoom       = alterarZoom
 })()
 
 </script>
