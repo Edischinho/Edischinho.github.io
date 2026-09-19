@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calendário — Omnisentis</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -336,6 +337,14 @@ const _supa = supabase.createClient(
   "https://iwggwgepwbrvmmrgsrvr.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3Z2d3Z2Vwd2Jydm1tcmdzcnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mzc4ODcsImV4cCI6MjA4OTExMzg4N30.BFaHUNavW7VOApg35r01SHsfjgYKUnhlT7YSADF9H6U"
 )
+
+// ── EmailJS (API de e-mail 100% client-side, sem precisar de backend) ──
+// Preencha estas 3 chaves com as da SUA conta em https://www.emailjs.com
+// (veja as instruções completas de configuração na conversa)
+const EMAILJS_PUBLIC_KEY  = "A2zaR3Z0SUbxL8mMF"
+const EMAILJS_SERVICE_ID  = "service_sdlaxnm"
+const EMAILJS_TEMPLATE_ID = "template_tlgsu8i"
+if (window.emailjs) emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY })
 
 // ── Estado ──
 let userId    = null
@@ -798,10 +807,8 @@ function determinarUrgencia(diasRestantes) {
   return { label: "📌 Programado", nivel: "normal" }
 }
 
-// ── Envia uma notificação por e-mail personalizada para a conta do usuário ──
-// (abre o cliente de e-mail do usuário já preenchido com data, urgência,
-// título e descrição da programação — não há servidor de e-mail configurado
-// neste projeto, então o envio final é confirmado pelo próprio usuário)
+// ── Envia uma notificação por e-mail personalizada para a conta do usuário, ──
+// ── automaticamente, via API do EmailJS (não abre nada no navegador do usuário) ──
 async function enviarEmailProgramacao(ev) {
   try {
     const { data } = await _supa.auth.getSession()
@@ -818,28 +825,24 @@ async function enviarEmailProgramacao(ev) {
       weekday: "long", day: "numeric", month: "long", year: "numeric"
     })
 
-    const assunto = `${label} — ${ev.titulo}`
-    const corpo = [
-      `Olá!`,
-      ``,
-      `Você tem uma programação registrada no seu Calendário Omnisentis:`,
-      ``,
-      `📌 Título    : ${ev.titulo}`,
-      `📅 Data      : ${dataFormatada} às ${horaStr(ev.inicio)}`,
-      `⏳ Urgência  : ${label}`,
-      `📝 Descrição : ${ev.desc && ev.desc.trim() ? ev.desc : "(sem descrição)"}`,
-      ``,
-      `— Omnisentis`
-    ].join("\n")
+    if (!window.emailjs || EMAILJS_PUBLIC_KEY === "SUA_PUBLIC_KEY_AQUI") {
+      console.warn("EmailJS não configurado — preencha EMAILJS_PUBLIC_KEY/SERVICE_ID/TEMPLATE_ID em calendario.html.")
+      return
+    }
 
-    const link = `mailto:${encodeURIComponent(emailUsuario)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`
-    const a = document.createElement("a")
-    a.href = link
-    a.style.display = "none"
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-  } catch {}
+    // Parâmetros enviados para o template do EmailJS — os nomes precisam
+    // ser exatamente {{to_email}}, {{titulo}}, {{data_evento}}, {{urgencia}}
+    // e {{descricao}} dentro do template criado no painel do EmailJS
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_email:    emailUsuario,
+      titulo:      ev.titulo,
+      data_evento: `${dataFormatada} às ${horaStr(ev.inicio)}`,
+      urgencia:    label,
+      descricao:   ev.desc && ev.desc.trim() ? ev.desc : "(sem descrição)"
+    })
+  } catch (err) {
+    console.warn("Não foi possível enviar o e-mail de notificação:", err)
+  }
 }
 
 async function deletarEvento() {
