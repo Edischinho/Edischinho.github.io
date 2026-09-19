@@ -362,6 +362,9 @@ async function init() {
 
   // Carregar localStorage primeiro (rápido)
   try { eventos = JSON.parse(localStorage.getItem(chaveEv()) || "[]") } catch { eventos = [] }
+  // Normaliza as datas (localStorage guarda como string) — sem isso as
+  // vistas "Dia" e "Semana" quebram, pois esperam objetos Date
+  eventos.forEach(e => { e.inicio = new Date(e.inicio); e.fim = new Date(e.fim) })
   renderizar()
 
   // Depois sincronizar com Supabase
@@ -562,7 +565,7 @@ function renderTimeline(body, diaInicio, numDias) {
   // Header
   const header = document.createElement("div")
   header.className = "dias-header"
-  header.style.gridTemplateColumns = `52px repeat(${numDias},1fr)`
+  header.style.gridTemplateColumns = `48px repeat(${numDias},1fr)`
   const vazio = document.createElement("div"); vazio.style.borderRight = "1px solid var(--border)"
   header.appendChild(vazio)
   for (let i = 0; i < numDias; i++) {
@@ -621,7 +624,9 @@ function renderTimeline(body, diaInicio, numDias) {
     // Eventos do dia
     const evsDia = eventosNoDia(d)
     evsDia.forEach(ev => {
-      const ini = ev.inicio, fim = ev.fim
+      // Garante objetos Date válidos (podem chegar como string vindos do localStorage)
+      const ini = ev.inicio instanceof Date ? ev.inicio : new Date(ev.inicio)
+      const fim = ev.fim    instanceof Date ? ev.fim    : new Date(ev.fim)
       const topPct  = (ini.getHours() * 60 + ini.getMinutes()) / (24*60) * 100
       const durMin  = Math.max((fim - ini) / 60000, 30)
       const heightPct = durMin / (24*60) * 100
@@ -737,6 +742,15 @@ function renderCoresModal() {
 function fecharModal() { document.getElementById("modal").classList.remove("aberto") }
 function fecharModalOverlay(e) { if (e.target === document.getElementById("modal")) fecharModal() }
 
+// ── Se a data de início passar a ser posterior à data de término, ──
+// ── a data de término é ajustada automaticamente para acompanhar o início ──
+document.getElementById("ev-data").addEventListener("change", function () {
+  const fimEl = document.getElementById("ev-data-fim")
+  if (this.value && (!fimEl.value || this.value > fimEl.value)) {
+    fimEl.value = this.value
+  }
+})
+
 async function salvarEvento() {
   const titulo = document.getElementById("ev-nome").value.trim()
   if (!titulo) { document.getElementById("ev-nome").focus(); return }
@@ -752,20 +766,80 @@ async function salvarEvento() {
 
   if (fim <= inicio) { alert("A hora de fim deve ser após o início."); return }
 
+  let evSalvo = null
+
   if (evEditing !== null) {
     // Editar
     const ev = eventos.find(e => e.id === evEditing)
     if (ev) { ev.titulo = titulo; ev.desc = desc; ev.inicio = inicio; ev.fim = fim; ev.cor = corAtual }
     await salvarEventoSupabase(ev)
+    evSalvo = ev
   } else {
     // Novo
     const novoEv = { id: "tmp_" + Date.now(), titulo, desc, inicio, fim, cor: corAtual }
     eventos.push(novoEv)
     await salvarEventoSupabase(novoEv)
+    evSalvo = novoEv
   }
 
   fecharModal()
   renderizar()
+
+  // Envia um e-mail personalizado para a conta do usuário, de acordo
+  // com o estágio de urgência da programação (urgente/passível/tranquilo/normal)
+  if (evSalvo) enviarEmailProgramacao(evSalvo)
+}
+
+// ── Determina o estágio (urgência) de uma programação a partir dos dias restantes ──
+function determinarUrgencia(diasRestantes) {
+  if (diasRestantes <= 3) return { label: "🔴 Urgente",    nivel: "urgente"   }
+  if (diasRestantes <= 6) return { label: "🟡 Passível",   nivel: "passivel"  }
+  if (diasRestantes <= 9) return { label: "🟢 Tranquilo",  nivel: "tranquilo" }
+  return { label: "📌 Programado", nivel: "normal" }
+}
+
+// ── Envia uma notificação por e-mail personalizada para a conta do usuário ──
+// (abre o cliente de e-mail do usuário já preenchido com data, urgência,
+// título e descrição da programação — não há servidor de e-mail configurado
+// neste projeto, então o envio final é confirmado pelo próprio usuário)
+async function enviarEmailProgramacao(ev) {
+  try {
+    const { data } = await _supa.auth.getSession()
+    const emailUsuario = data?.session?.user?.email
+    if (!emailUsuario) return
+
+    const hoje0  = new Date(); hoje0.setHours(0, 0, 0, 0)
+    const iniDia = new Date(ev.inicio); iniDia.setHours(0, 0, 0, 0)
+    const diasRestantes = Math.floor((iniDia - hoje0) / (1000 * 60 * 60 * 24))
+    if (diasRestantes < 0) return // não notifica programações que já passaram
+
+    const { label } = determinarUrgencia(diasRestantes)
+    const dataFormatada = ev.inicio.toLocaleDateString("pt-BR", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric"
+    })
+
+    const assunto = `${label} — ${ev.titulo}`
+    const corpo = [
+      `Olá!`,
+      ``,
+      `Você tem uma programação registrada no seu Calendário Omnisentis:`,
+      ``,
+      `📌 Título    : ${ev.titulo}`,
+      `📅 Data      : ${dataFormatada} às ${horaStr(ev.inicio)}`,
+      `⏳ Urgência  : ${label}`,
+      `📝 Descrição : ${ev.desc && ev.desc.trim() ? ev.desc : "(sem descrição)"}`,
+      ``,
+      `— Omnisentis`
+    ].join("\n")
+
+    const link = `mailto:${encodeURIComponent(emailUsuario)}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`
+    const a = document.createElement("a")
+    a.href = link
+    a.style.display = "none"
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  } catch {}
 }
 
 async function deletarEvento() {
