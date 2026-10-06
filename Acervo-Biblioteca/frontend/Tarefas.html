@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="IconeSH.ico">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tarefas — Omnisentis</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #111;
+      --surface:  #1a1a1a;
+      --surface2: #222;
+      --border:   #2a2a2a;
+      --text:     #eee;
+      --muted:    #888;
+      --accent:   #ffd700;
+      --radius:   10px;
+    }
+
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: Arial, sans-serif; min-height: 100vh;
+    }
+
+    /* ── Topo ── */
+    .topo {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 20px; background: #000;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10; flex-wrap: wrap;
+    }
+    .topo a {
+      color: #aaa; text-decoration: none; font-size: 14px; white-space: nowrap;
+    }
+    .topo a:hover { color: white; }
+    .topo-titulo {
+      font-size: 18px; font-weight: bold; letter-spacing: 1px;
+      color: var(--accent); text-shadow: 0 0 20px rgba(255,215,0,0.5);
+      margin-right: auto;
+    }
+    .btn-atualizar {
+      background: var(--surface2); color: var(--text); border: none;
+      border-radius: var(--radius); padding: 7px 14px; font-size: 13px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .btn-atualizar:hover { background: #333; }
+
+    /* ── Container ── */
+    .container { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; }
+
+    .secao-titulo {
+      font-size: 13px; font-weight: bold; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--muted);
+      margin: 28px 0 12px; padding-left: 2px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .secao-titulo .contagem {
+      background: var(--surface2); color: var(--text);
+      border-radius: 10px; padding: 1px 9px; font-size: 11px; font-weight: normal;
+    }
+
+    .lista-cards { display: flex; flex-direction: column; gap: 12px; }
+
+    /* ── Cartão de tarefa ── */
+    .tarefa-card {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--cor-tarefa, var(--accent));
+      border-radius: var(--radius);
+      padding: 14px 16px 14px 14px;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    }
+    .tarefa-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+    .tarefa-card.concluida {
+      cursor: default;
+      opacity: 0.65;
+      border-left-color: #555 !important;
+    }
+    .tarefa-card.concluida:hover { transform: none; box-shadow: none; }
+
+    .tarefa-topo {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-bottom: 6px; flex-wrap: wrap;
+    }
+    .tarefa-titulo {
+      font-size: 15px; font-weight: bold; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .tarefa-card.concluida .tarefa-titulo {
+      color: var(--muted); text-decoration: line-through;
+    }
+
+    .badge-urgencia {
+      font-size: 11px; font-weight: bold; border-radius: 12px;
+      padding: 3px 10px; white-space: nowrap; flex-shrink: 0;
+    }
+    .badge-urgente   { background: rgba(239,68,68,0.18);  color: #ef4444; }
+    .badge-passivel  { background: rgba(234,179,8,0.18);  color: #eab308; }
+    .badge-tranquilo { background: rgba(34,197,94,0.18);  color: #22c55e; }
+    .badge-normal    { background: rgba(147,197,253,0.18);color: #93c5fd; }
+    .badge-concluida { background: rgba(255,255,255,0.1); color: #aaa; }
+
+    .tarefa-data {
+      font-size: 12px; color: var(--muted); margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .tarefa-desc {
+      font-size: 13px; color: #ccc; line-height: 1.5;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .tarefa-card.concluida .tarefa-desc { color: #888; }
+
+    .tarefa-desc .tag-hash {
+      color: var(--accent); font-weight: bold;
+    }
+    .tarefa-card.concluida .tarefa-desc .tag-hash { color: #777; }
+
+    .tarefa-selo-ok {
+      position: absolute; top: 10px; right: 12px;
+      font-size: 18px;
+    }
+
+    /* ── Estados vazios / carregando ── */
+    .vazio {
+      text-align: center; color: var(--muted); font-size: 14px;
+      padding: 30px 10px;
+    }
+    .vazio span { font-size: 34px; display: block; margin-bottom: 10px; }
+
+    .dica {
+      font-size: 12px; color: #666; text-align: center;
+      margin-top: 4px; line-height: 1.5;
+    }
+    .dica code {
+      background: var(--surface2); color: var(--accent);
+      border-radius: 4px; padding: 1px 6px; font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="topo">
+  <a href="index.html">← Início</a>
+  <span class="topo-titulo">✅ Tarefas</span>
+  <a href="calendario.html">📅 Calendário</a>
+  <button class="btn-atualizar" onclick="carregarTarefas()">🔄 Atualizar</button>
+</div>
+
+<div class="container">
+  <p class="dica">
+    Toda programação do <a href="calendario.html" style="color:var(--accent);">Calendário</a>
+    com a tag <code>#tarefa</code> na descrição aparece aqui automaticamente.
+  </p>
+
+  <div id="secao-pendentes">
+    <div class="secao-titulo">⏳ Pendentes <span class="contagem" id="contagem-pendentes">0</span></div>
+    <div class="lista-cards" id="lista-pendentes"></div>
+  </div>
+
+  <div id="secao-concluidas">
+    <div class="secao-titulo">✅ Concluídas <span class="contagem" id="contagem-concluidas">0</span></div>
+    <div class="lista-cards" id="lista-concluidas"></div>
+  </div>
+</div>
+
+<script>
+const _supa = supabase.createClient(
+  "https://iwggwgepwbrvmmrgsrvr.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3Z2d3Z2Vwd2Jydm1tcmdzcnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Mzc4ODcsImV4cCI6MjA4OTExMzg4N30.BFaHUNavW7VOApg35r01SHsfjgYKUnhlT7YSADF9H6U"
+)
+
+let userId  = null
+let tarefas = []  // programações do calendário que contêm a tag #tarefa
+
+const TAG_TAREFA = /#tarefa\b/i
+
+// ── Init ──
+async function init() {
+  const { data } = await _supa.auth.getSession()
+  if (!data.session) { location.href = "login.html?next=Tarefas.html"; return }
+  userId = data.session.user.id
+  await carregarTarefas()
+}
+
+// ── Carrega do Supabase todas as programações do usuário que têm #tarefa ──
+async function carregarTarefas() {
+  const listaPend = document.getElementById("lista-pendentes")
+  const listaConc = document.getElementById("lista-concluidas")
+  listaPend.innerHTML = '<div class="vazio">⏳ Carregando tarefas...</div>'
+  listaConc.innerHTML = ""
+
+  try {
+    const { data, error } = await _supa
+      .from("eventos_calendario")
+      .select("*")
+      .eq("user_id", userId)
+      .order("inicio", { ascending: true })
+    if (error) throw error
+
+    tarefas = (data || [])
+      .filter(e => TAG_TAREFA.test(e.descricao || ""))
+      .map(e => ({
+        id:        e.id,
+        titulo:    e.titulo,
+        desc:      e.descricao || "",
+        inicio:    new Date(e.inicio),
+        fim:       new Date(e.fim),
+        cor:       e.cor || "#facc15",
+        concluida: !!e.concluida
+      }))
+
+    // Toda tarefa cujo prazo já passou é marcada como concluída
+    // automaticamente — e assim também fica cinza no Calendário
+    await autoCompletarVencidas()
+
+    renderizarTarefas()
+  } catch (err) {
+    listaPend.innerHTML = `<div class="vazio">❌ Erro ao carregar tarefas.<br><button class="btn-atualizar" style="margin-top:10px;" onclick="carregarTarefas()">Tentar novamente</button></div>`
+  }
+}
+
+// ── Marca como concluída toda tarefa cujo prazo (fim) já passou ──
+async function autoCompletarVencidas() {
+  const agora = Date.now()
+  for (const t of tarefas) {
+    if (!t.concluida && t.fim.getTime() < agora) {
+      t.concluida = true
+      try {
+        await _supa.from("eventos_calendario").update({ concluida: true })
+          .eq("id", t.id).eq("user_id", userId)
+      } catch {}
+    }
+  }
+}
+
+// ── Determina o estágio de urgência (mesmas faixas usadas no Calendário) ──
+function determinarUrgencia(diasRestantes) {
+  if (diasRestantes <= 3) return { label: "🔴 Urgente",   classe: "urgente"   }
+  if (diasRestantes <= 6) return { label: "🟡 Passível",  classe: "passivel"  }
+  if (diasRestantes <= 9) return { label: "🟢 Tranquilo", classe: "tranquilo" }
+  return { label: "📌 Programado", classe: "normal" }
+}
+
+// ── Formata a data do cartão — mostra intervalo quando os dias diferem ──
+function mesmoDiaCal(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+function horaStr(d) {
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`
+}
+function dataCurta(d) {
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+}
+function formatarPeriodo(ini, fim) {
+  if (mesmoDiaCal(ini, fim)) {
+    const dataExtenso = ini.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })
+    return `📅 ${dataExtenso} · ${horaStr(ini)} – ${horaStr(fim)}`
+  }
+  // Intervalo entre dias diferentes
+  return `📅 ${dataCurta(ini)} ${horaStr(ini)} até ${dataCurta(fim)} ${horaStr(fim)}`
+}
+
+// ── Escapa HTML e realça a tag #tarefa na descrição ──
+function escapeHtml(t) {
+  return (t || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+}
+function destacarTags(desc) {
+  return escapeHtml(desc).replace(/#\w+/g, m => `<span class="tag-hash">${m}</span>`)
+}
+
+// ── Renderiza os cartões, separados em pendentes e concluídas ──
+function renderizarTarefas() {
+  const pendentes  = tarefas.filter(t => !t.concluida).sort((a,b) => a.inicio - b.inicio)
+  const concluidas = tarefas.filter(t =>  t.concluida).sort((a,b) => b.inicio - a.inicio)
+
+  document.getElementById("contagem-pendentes").textContent  = pendentes.length
+  document.getElementById("contagem-concluidas").textContent = concluidas.length
+
+  const listaPend = document.getElementById("lista-pendentes")
+  const listaConc = document.getElementById("lista-concluidas")
+
+  listaPend.innerHTML = pendentes.length
+    ? ""
+    : '<div class="vazio"><span>🎉</span>Nenhuma tarefa pendente.</div>'
+  listaConc.innerHTML = ""
+
+  pendentes.forEach(t  => listaPend.appendChild(criarCard(t)))
+  concluidas.forEach(t => listaConc.appendChild(criarCard(t)))
+
+  // A seção de concluídas só aparece se houver alguma
+  document.getElementById("secao-concluidas").style.display = concluidas.length ? "" : "none"
+}
+
+// ── Cria o cartão interativo de uma tarefa ──
+function criarCard(t) {
+  const hoje0  = new Date(); hoje0.setHours(0, 0, 0, 0)
+  const iniDia = new Date(t.inicio); iniDia.setHours(0, 0, 0, 0)
+  const diasRestantes = Math.floor((iniDia - hoje0) / (1000 * 60 * 60 * 24))
+
+  const card = document.createElement("div")
+  card.className = "tarefa-card" + (t.concluida ? " concluida" : "")
+  card.style.setProperty("--cor-tarefa", t.concluida ? "#555" : t.cor)
+  // Sombreamento (tingimento) de fundo com a cor da tarefa
+  card.style.background = t.concluida ? "" : `${t.cor}1A`
+
+  let badgeHtml
+  if (t.concluida) {
+    badgeHtml = `<span class="badge-urgencia badge-concluida">✅ Concluída</span>`
+  } else {
+    const { label, classe } = determinarUrgencia(diasRestantes)
+    badgeHtml = `<span class="badge-urgencia badge-${classe}">${label}</span>`
+  }
+
+  card.innerHTML = `
+    <div class="tarefa-topo">
+      <div class="tarefa-titulo">${escapeHtml(t.titulo)}</div>
+      ${badgeHtml}
+    </div>
+    <div class="tarefa-data">${formatarPeriodo(t.inicio, t.fim)}</div>
+    <div class="tarefa-desc">${destacarTags(t.desc) || "<em>(sem descrição)</em>"}</div>
+  `
+
+  if (!t.concluida) {
+    card.addEventListener("click", () => confirmarConclusao(t))
+  }
+  return card
+}
+
+// ── Confirma e marca a tarefa como concluída (fica cinza aqui e no Calendário) ──
+async function confirmarConclusao(t) {
+  const ok = confirm(`Marcar "${t.titulo}" como concluída?\n\nEla ficará cinza no Calendário.`)
+  if (!ok) return
+
+  try {
+    const { error } = await _supa.from("eventos_calendario")
+      .update({ concluida: true })
+      .eq("id", t.id).eq("user_id", userId)
+    if (error) throw error
+
+    t.concluida = true
+    renderizarTarefas()
+  } catch {
+    alert("Não foi possível concluir a tarefa. Tente novamente.")
+  }
+}
+
+init()
+</script>
+
+</body>
+</html>
