@@ -95,6 +95,7 @@
       max-width: 100%;
     }
     .ev-pill:hover { opacity: 0.8; }
+    .ev-pill.passado { background: #555 !important; color: #ccc !important; opacity: 0.7; }
     .ev-mais { font-size: 10px; color: var(--muted); cursor: pointer; }
     .ev-mais:hover { color: var(--text); }
 
@@ -117,12 +118,14 @@
     }
     .hora-slot:hover { background: rgba(255,255,255,0.03); }
     .ev-bloco {
-      position: absolute; left: 2px; right: 2px;
+      position: absolute;
       border-radius: 5px; padding: 2px 5px; font-size: 10px;
       color: #111; font-weight: 600; overflow: hidden;
       cursor: pointer; z-index: 2; transition: opacity 0.15s;
+      box-sizing: border-box;
     }
-    .ev-bloco:hover { opacity: 0.85; }
+    .ev-bloco:hover { opacity: 0.85; z-index: 3; }
+    .ev-bloco.passado { background: #444 !important; color: #bbb !important; opacity: 0.6; }
 
     /* ── Vista Ano ── */
     .ano-grid {
@@ -390,6 +393,10 @@ async function init() {
 
   // Depois sincronizar com Supabase
   await sincronizarEventos()
+
+  // Toda programação cujo prazo já passou é marcada como concluída
+  // automaticamente, ficando cinza tanto aqui quanto em Tarefas.html
+  await autoCompletarVencidas()
   renderizar()
 
   // Verifica, para todas as programações, se o estágio de urgência mudou
@@ -409,12 +416,13 @@ async function sincronizarEventos() {
       .order("inicio", { ascending: true })
     if (error) throw error
     eventos = data.map(e => ({
-      id:     e.id,
-      titulo: e.titulo,
-      desc:   e.descricao || "",
-      inicio: new Date(e.inicio),
-      fim:    new Date(e.fim),
-      cor:    e.cor || "#facc15"
+      id:        e.id,
+      titulo:    e.titulo,
+      desc:      e.descricao || "",
+      inicio:    new Date(e.inicio),
+      fim:       new Date(e.fim),
+      cor:       e.cor || "#facc15",
+      concluida: !!e.concluida
     }))
     localStorage.setItem(chaveEv(), JSON.stringify(eventos.map(e => ({
       ...e, inicio: e.inicio.toISOString(), fim: e.fim.toISOString()
@@ -434,7 +442,8 @@ async function salvarEventoSupabase(ev) {
       // Insert
       const { data } = await _supa.from("eventos_calendario").insert({
         user_id: userId, titulo: ev.titulo, descricao: ev.desc,
-        inicio: ev.inicio.toISOString(), fim: ev.fim.toISOString(), cor: ev.cor
+        inicio: ev.inicio.toISOString(), fim: ev.fim.toISOString(), cor: ev.cor,
+        concluida: !!ev.concluida
       }).select("id").single()
       if (data) ev.id = data.id
     }
@@ -546,19 +555,24 @@ function renderMes(body) {
     // Eventos do dia
     const evsDia  = eventosNoDia(d)
     const MAX_SHOW = 3
-    evsDia.slice(0, MAX_SHOW).forEach(ev => {
+    // O "+mais" só aparece quando falta espaço para exatamente 1 atividade —
+    // ou seja, ele ocupa o próprio lugar da última atividade visível, em vez
+    // de ser um item extra que estoura o espaço do dia
+    const temMais     = evsDia.length > MAX_SHOW
+    const qtdMostrada  = temMais ? MAX_SHOW - 1 : evsDia.length
+    evsDia.slice(0, qtdMostrada).forEach(ev => {
       const ini = ev.inicio instanceof Date ? ev.inicio : new Date(ev.inicio)
       const pill = document.createElement("span")
-      pill.className = "ev-pill"
+      pill.className = "ev-pill" + (eventoJaPassou(ev) ? " passado" : "")
       pill.style.background = ev.cor
       pill.textContent = (ini.getHours() ? horaStr(ini) + " " : "") + ev.titulo
       pill.onclick = e => { e.stopPropagation(); abrirModal(ev) }
       cel.appendChild(pill)
     })
-    if (evsDia.length > MAX_SHOW) {
+    if (temMais) {
       const mais = document.createElement("span")
       mais.className = "ev-mais"
-      mais.textContent = `+${evsDia.length - MAX_SHOW} mais`
+      mais.textContent = `+${evsDia.length - qtdMostrada} mais`
       mais.onclick = e => { e.stopPropagation(); cursor = new Date(d); setVista("dia") }
       cel.appendChild(mais)
     }
@@ -648,9 +662,11 @@ function renderTimeline(body, diaInicio, numDias) {
       col.appendChild(linha)
     }
 
-    // Eventos do dia
-    const evsDia = eventosNoDia(d)
-    evsDia.forEach(ev => {
+    // Eventos do dia — calcula colunas para que eventos no mesmo horário
+    // apareçam lado a lado, em vez de ficarem sobrepostos um em cima do outro
+    const evsDia   = eventosNoDia(d)
+    const layouts  = calcularLayoutEventos(evsDia)
+    layouts.forEach(({ ev, colIdx, totalCols }) => {
       // Garante objetos Date válidos (podem chegar como string vindos do localStorage)
       const ini = ev.inicio instanceof Date ? ev.inicio : new Date(ev.inicio)
       const fim = ev.fim    instanceof Date ? ev.fim    : new Date(ev.fim)
@@ -658,9 +674,15 @@ function renderTimeline(body, diaInicio, numDias) {
       const durMin  = Math.max((fim - ini) / 60000, 30)
       const heightPct = durMin / (24*60) * 100
 
+      const larguraPct  = 100 / totalCols
+      const esquerdaPct = colIdx * larguraPct
+
       const bloco = document.createElement("div")
-      bloco.className = "ev-bloco"
-      bloco.style.cssText = `top:${topPct}%;height:${heightPct}%;background:${ev.cor};`
+      bloco.className = "ev-bloco" + (eventoJaPassou(ev) ? " passado" : "")
+      bloco.style.cssText =
+        `top:${topPct}%;height:${heightPct}%;` +
+        `left:calc(${esquerdaPct}% + 2px);width:calc(${larguraPct}% - 4px);` +
+        `background:${ev.cor};`
       bloco.innerHTML = `<div style="font-size:11px">${horaStr(ini)}</div><div>${ev.titulo}</div>`
       bloco.onclick = (e) => { e.stopPropagation(); abrirModal(ev) }
       col.appendChild(bloco)
@@ -804,7 +826,7 @@ async function salvarEvento() {
     evSalvo = ev
   } else {
     // Novo
-    const novoEv = { id: "tmp_" + Date.now(), titulo, desc, inicio, fim, cor: corAtual }
+    const novoEv = { id: "tmp_" + Date.now(), titulo, desc, inicio, fim, cor: corAtual, concluida: false }
     eventos.push(novoEv)
     await salvarEventoSupabase(novoEv)
     evSalvo = novoEv
@@ -925,6 +947,70 @@ function eventosNoDia(d) {
 
 function isoData(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
+}
+
+// ── Já passou (ou foi concluída manualmente)? Usado para pintar a ──
+// ── atividade em cinza automaticamente, tanto aqui quanto em Tarefas.html ──
+function eventoJaPassou(ev) {
+  if (ev.concluida) return true
+  const fim = ev.fim instanceof Date ? ev.fim : new Date(ev.fim)
+  return fim.getTime() < Date.now()
+}
+
+// ── Marca automaticamente como concluída toda programação cujo prazo já ──
+// ── passou (assim ela fica registrada como concluída, e não só "cinza na hora") ──
+async function autoCompletarVencidas() {
+  const agora = Date.now()
+  for (const ev of eventos) {
+    const fim = ev.fim instanceof Date ? ev.fim : new Date(ev.fim)
+    if (!ev.concluida && fim.getTime() < agora) {
+      ev.concluida = true
+      try {
+        await _supa.from("eventos_calendario").update({ concluida: true })
+          .eq("id", ev.id).eq("user_id", userId)
+      } catch {}
+    }
+  }
+  persistirLocal()
+}
+
+// ── Calcula, para um conjunto de eventos do mesmo dia, em qual "coluna" ──
+// ── cada um deve ficar, para que eventos simultâneos fiquem lado a lado ──
+// ── (em vez de sobrepostos) — algoritmo clássico de layout de agenda ──
+function calcularLayoutEventos(evsDia) {
+  const itens = evsDia
+    .map(ev => ({
+      ev,
+      ini: (ev.inicio instanceof Date ? ev.inicio : new Date(ev.inicio)).getTime(),
+      fim: (ev.fim    instanceof Date ? ev.fim    : new Date(ev.fim)).getTime()
+    }))
+    .sort((a, b) => a.ini - b.ini || a.fim - b.fim)
+
+  const resultado = []
+  let grupo        = null   // { itens: [{ item, colIdx }], colunasFim: [...] }
+
+  itens.forEach(item => {
+    // Se nenhuma coluna do grupo atual ainda está "ocupada" neste horário,
+    // o grupo anterior terminou e começamos um novo
+    const sobrepoeGrupoAtual = grupo && grupo.colunasFim.some(fimCol => fimCol > item.ini)
+    if (!sobrepoeGrupoAtual) {
+      grupo = { itens: [], colunasFim: [] }
+    }
+
+    // Reaproveita a primeira coluna já livre (cujo evento anterior já terminou)
+    let colIdx = grupo.colunasFim.findIndex(fimCol => fimCol <= item.ini)
+    if (colIdx === -1) { colIdx = grupo.colunasFim.length; grupo.colunasFim.push(item.fim) }
+    else { grupo.colunasFim[colIdx] = item.fim }
+
+    grupo.itens.push({ item, colIdx })
+    // totalCols do grupo = maior quantidade de colunas já usada por ele
+    grupo.totalCols = grupo.colunasFim.length
+    resultado.push({ grupo, item, colIdx })
+  })
+
+  return resultado.map(({ grupo, item, colIdx }) => ({
+    ev: item.ev, colIdx, totalCols: grupo.totalCols
+  }))
 }
 
 function horaStr(d) {
