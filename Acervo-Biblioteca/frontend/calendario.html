@@ -100,17 +100,23 @@
     .ev-mais:hover { color: var(--text); }
 
     /* ── Vista Dia / Semana ── */
-    .timeline { display: flex; flex: 1; min-height: 0; overflow: auto; }
-    .horas-col { width: 48px; flex-shrink: 0; border-right: 1px solid var(--border); }
+    /* IMPORTANTE: "align-items: flex-start" evita que o flexbox "estique"
+       .horas-col/.dias-cols/.dia-col para caber na altura visível da tela.
+       Sem isso, a altura real de .dia-col ficava menor que as 24h (1440px),
+       e os blocos de evento — posicionados por % dessa altura — apareciam
+       em um horário mais cedo do que o correto. A altura fixa de 1440px
+       (24h × 60px) garante que a % de cada bloco seja calculada certo. */
+    .timeline { display: flex; flex: 1; min-height: 0; overflow: auto; align-items: flex-start; }
+    .horas-col { width: 48px; flex-shrink: 0; border-right: 1px solid var(--border); height: 1440px; }
     .hora-label {
       height: 60px; display: flex; align-items: flex-start;
       justify-content: flex-end; padding: 2px 5px 0 0;
       font-size: 10px; color: var(--muted);
     }
-    .dias-cols { flex: 1; display: flex; min-width: 0; }
+    .dias-cols { flex: 1; display: flex; min-width: 0; align-items: flex-start; }
     .dia-col {
       flex: 1; min-width: 80px; border-right: 1px solid var(--border);
-      position: relative; cursor: pointer;
+      position: relative; cursor: pointer; height: 1440px;
     }
     .hora-slot {
       height: 60px; border-bottom: 1px solid var(--border);
@@ -209,6 +215,10 @@
 
       /* Ano: 2 colunas */
       .ano-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 8px; }
+
+      /* Painel de urgências/tarefas ocupa quase a tela toda no celular */
+      .painel-urgencias { top: 50px; right: 6px; left: 6px; width: auto; }
+      .painel-urg-tarefas { font-size: 13px; padding: 11px 14px; }
     }
 
     /* ── Painel de Urgências ── */
@@ -228,6 +238,18 @@
       z-index: 200; overflow: hidden;
     }
     .painel-urgencias.aberto { display: block; }
+
+    /* ── Botão "Ver Tarefas", acima de "Próximas programações" ── */
+    .painel-urg-tarefas {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 12px 16px; border: none;
+      background: var(--accent); color: #111;
+      font-size: 14px; font-weight: bold; letter-spacing: 0.3px;
+      cursor: pointer; text-decoration: none;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .painel-urg-tarefas:hover { background: #ffe44d; }
 
     .painel-urg-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -302,6 +324,7 @@
 
 <!-- Painel de Urgências -->
 <div class="painel-urgencias" id="painel-urgencias">
+  <a class="painel-urg-tarefas" href="Tarefas.html">✅ Ver Tarefas</a>
   <div class="painel-urg-header">
     ⏰ Próximas programações
     <button class="painel-urg-fechar" onclick="togglePainelUrgencias()">✕</button>
@@ -344,9 +367,9 @@ const _supa = supabase.createClient(
 // ── EmailJS (API de e-mail 100% client-side, sem precisar de backend) ──
 // Preencha estas 3 chaves com as da SUA conta em https://www.emailjs.com
 // (veja as instruções completas de configuração na conversa)
-const EMAILJS_PUBLIC_KEY  = "A2zaR3Z0SUbxL8mMF"
-const EMAILJS_SERVICE_ID  = "service_sdlaxnm"
-const EMAILJS_TEMPLATE_ID = "template_tlgsu8i"
+const EMAILJS_PUBLIC_KEY  = "SUA_PUBLIC_KEY_AQUI"
+const EMAILJS_SERVICE_ID  = "SEU_SERVICE_ID_AQUI"
+const EMAILJS_TEMPLATE_ID = "SEU_TEMPLATE_ID_AQUI"
 if (window.emailjs) emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY })
 
 // ── Estado ──
