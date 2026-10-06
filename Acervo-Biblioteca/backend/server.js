@@ -1,6 +1,7 @@
 const express  = require("express")
 const multer   = require("multer")
 const fs       = require("fs")
+const https    = require("https")
 const cors     = require("cors")
 const { createClient } = require("@supabase/supabase-js")
 
@@ -38,6 +39,17 @@ const ADMIN_TOKEN  = process.env.ADMIN_TOKEN
 if (!SUPABASE_URL || !SUPABASE_KEY) { console.error("ERRO: SUPABASE_URL e SUPABASE_KEY obrigatórias."); process.exit(1) }
 if (!ADMIN_TOKEN) console.warn("AVISO: ADMIN_TOKEN não definido.")
 
+// ── EmailJS (rotina de notificação de urgência das programações do calendário) ──
+// Diferente do calendario.html (que usa a Public Key no navegador), aqui no
+// backend é usada a Private Key (Access Token), que só funciona fora do browser.
+const EMAILJS_SERVICE_ID  = process.env.EMAILJS_SERVICE_ID  || ""
+const EMAILJS_TEMPLATE_ID = process.env.EMAILJS_TEMPLATE_ID || ""
+const EMAILJS_PUBLIC_KEY  = process.env.EMAILJS_PUBLIC_KEY  || ""
+const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY || ""
+if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY || !EMAILJS_PRIVATE_KEY) {
+  console.warn("AVISO: EMAILJS_SERVICE_ID/TEMPLATE_ID/PUBLIC_KEY/PRIVATE_KEY não definidos — a rotina de notificação de urgência ficará inativa.")
+}
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 if (!fs.existsSync("temp")) fs.mkdirSync("temp")
 
@@ -72,6 +84,101 @@ async function uploadStorage(filePath, fileName, mimetype) {
   if (error) throw error
   return supabase.storage.from("livros").getPublicUrl(fileName).data.publicUrl
 }
+
+// ─── ROTINA: NOTIFICAÇÃO DE URGÊNCIA DAS PROGRAMAÇÕES ───
+// Roda sozinha, no servidor, mesmo que ninguém tenha o calendário aberto.
+// Depende de uma coluna extra na tabela "eventos_calendario":
+//   ALTER TABLE eventos_calendario ADD COLUMN IF NOT EXISTS nivel_notificado text;
+
+function determinarUrgenciaBackend(diasRestantes) {
+  if (diasRestantes <= 3) return { label: "🔴 Urgente",    nivel: "urgente"   }
+  if (diasRestantes <= 6) return { label: "🟡 Passível",   nivel: "passivel"  }
+  if (diasRestantes <= 9) return { label: "🟢 Tranquilo",  nivel: "tranquilo" }
+  return { label: "📌 Programado", nivel: "normal" }
+}
+
+// Envia um e-mail através da API REST do EmailJS (uso server-side, com Private Key)
+function enviarEmailViaEmailJS(templateParams) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({
+      service_id:      EMAILJS_SERVICE_ID,
+      template_id:      EMAILJS_TEMPLATE_ID,
+      user_id:          EMAILJS_PUBLIC_KEY,
+      accessToken:      EMAILJS_PRIVATE_KEY,
+      template_params:  templateParams
+    })
+    const req = https.request("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }
+    }, res => {
+      let data = ""
+      res.on("data", c => data += c)
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) resolve(data)
+        else reject(new Error(`EmailJS respondeu ${res.statusCode}: ${data}`))
+      })
+    })
+    req.on("error", reject)
+    req.write(body)
+    req.end()
+  })
+}
+
+// Verifica todas as programações futuras de todos os usuários e envia um
+// e-mail quando: (1) a programação acabou de ser registrada (ainda não tem
+// nível notificado), ou (2) o estágio de urgência mudou desde a última notificação.
+async function verificarUrgenciasEEnviarEmails() {
+  if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY || !EMAILJS_PRIVATE_KEY) return
+
+  try {
+    const hoje0 = new Date(); hoje0.setHours(0, 0, 0, 0)
+
+    const { data: eventosList, error } = await supabase
+      .from("eventos_calendario")
+      .select("id, user_id, titulo, descricao, inicio, fim, nivel_notificado")
+    if (error) throw error
+
+    for (const ev of (eventosList || [])) {
+      try {
+        const iniDia = new Date(ev.inicio); iniDia.setHours(0, 0, 0, 0)
+        const diasRestantes = Math.floor((iniDia - hoje0) / (1000 * 60 * 60 * 24))
+        if (diasRestantes < 0) continue // não notifica programações que já passaram
+
+        const { label, nivel } = determinarUrgenciaBackend(diasRestantes)
+        if (ev.nivel_notificado === nivel) continue // já notificado nesse estágio
+
+        const { data: userData, error: userErr } = await supabase.auth.admin.getUserById(ev.user_id)
+        const email = userData?.user?.email
+        if (userErr || !email) continue
+
+        const dataEvento = new Date(ev.inicio)
+        const dataFormatada = dataEvento.toLocaleDateString("pt-BR", {
+          weekday: "long", day: "numeric", month: "long", year: "numeric"
+        })
+        const horaFormatada = `${String(dataEvento.getHours()).padStart(2,"0")}:${String(dataEvento.getMinutes()).padStart(2,"0")}`
+
+        await enviarEmailViaEmailJS({
+          to_email:    email,
+          titulo:      ev.titulo,
+          data_evento: `${dataFormatada} às ${horaFormatada}`,
+          urgencia:    label,
+          descricao:   ev.descricao && ev.descricao.trim() ? ev.descricao : "(sem descrição)",
+          motivo:      ev.nivel_notificado ? "Mudança no estágio de urgência" : "Nova programação registrada"
+        })
+
+        await supabase.from("eventos_calendario").update({ nivel_notificado: nivel }).eq("id", ev.id)
+      } catch (erroItem) {
+        console.error("Erro ao notificar programação", ev.id, ":", erroItem.message)
+      }
+    }
+  } catch (err) {
+    console.error("Erro na rotina de verificação de urgências:", err.message)
+  }
+}
+
+// Roda uma vez ao iniciar o servidor e depois a cada 6 horas
+verificarUrgenciasEEnviarEmails()
+setInterval(verificarUrgenciasEEnviarEmails, 6 * 60 * 60 * 1000)
 
 // ─── ROTAS ───────────────────────────────────────────────
 
